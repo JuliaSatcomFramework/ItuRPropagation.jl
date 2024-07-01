@@ -7,6 +7,7 @@ Recommendation ITU-R P.838-3 recommends the procedure for obtaining the
 
 using ItuRPropagation
 using ItuRPropagation: tilt_from_polarization
+using Artifacts
 
 const version = ItuRVersion("ITU-R", "P.838", 8, "03/2005")
 

@@ -1,5 +1,7 @@
 module ItuRPropagation
 
+using Artifacts
+
 export attenuations
 export downlinkparameters
 export uplinkparameters

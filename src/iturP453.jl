@@ -8,7 +8,7 @@ Recommendation ITU-R P.453 provides methods to estimate the radio refractive ind
 =#
 
 using ItuRPropagation
-
+using Artifacts
 version = ItuRVersion("ITU-R", "P.453", 14, "(08/2019)")
 
 #region initialization
@@ -21,7 +21,7 @@ lonvalues = [(-180.0 + (j - 1) * 0.75) for j in 1:lonsize]
 
 wettermdata_50 = zeros(Float64, (latsize, lonsize))
 read!(
-    joinpath(@__DIR__, "data/wettermsurfacerefractivityannual_50_$(string(latsize))_x_$(string(lonsize)).bin"),
+    joinpath(artifact"input-maps", "wettermsurfacerefractivityannual_50_$(string(latsize))_x_$(string(lonsize)).bin"),
     wettermdata_50
 )
 

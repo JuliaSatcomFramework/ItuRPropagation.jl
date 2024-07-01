@@ -16,6 +16,7 @@ When reliable long-term local rainfall rate data is available with integration t
 =#
 
 using ItuRPropagation
+using Artifacts
 
 const version = ItuRVersion("ITU-R", "P.837", 7, "(06/2017)")
 
@@ -34,7 +35,7 @@ const r001data = zeros(Float64, annuallatsize, annuallonsize)
 function initialize()
     initialized[] && return nothing
 read!(
-    joinpath(@__DIR__, "data/rainfallrate001annual_$(string(annuallatsize))_x_$(string(annuallonsize)).bin"),
+    joinpath(artifact"input-maps", "rainfallrate001annual_$(string(annuallatsize))_x_$(string(annuallonsize)).bin"),
     r001data
 )
     initialized[] = true

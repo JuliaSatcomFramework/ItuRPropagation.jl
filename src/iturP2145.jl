@@ -7,6 +7,7 @@ gaseous attenuation and related effects on terrestrial and Earth-space paths.
 =#
 
 using ItuRPropagation
+using Artifacts
 
 version = ItuRVersion("ITU-R", "P.2145", 0, "(08/2022)")
 
@@ -31,11 +32,11 @@ for nps in range(1, npsannual)
     tempdata = zeros(Float64, (latsize, lonsize))
     rhodata = zeros(Float64, (latsize, lonsize))
     read!(
-        joinpath(@__DIR__, "data/surfacetemperatureannual_$(string(latsize))_x_$(string(lonsize))_x_$(filespsannual[nps]).bin"),
+        joinpath(artifact"input-maps", "surfacetemperatureannual_$(string(latsize))_x_$(string(lonsize))_x_$(filespsannual[nps]).bin"),
         tempdata
     )
     read!(
-        joinpath(@__DIR__, "data/surfacewatervapordensityannual_$(string(latsize))_x_$(string(lonsize))_x_$(filespsannual[nps]).bin"),
+        joinpath(artifact"input-maps", "surfacewatervapordensityannual_$(string(latsize))_x_$(string(lonsize))_x_$(filespsannual[nps]).bin"),
         rhodata
     )
     for lat in 1:latsize
@@ -50,13 +51,13 @@ end
 
 scaleheightrhodata = zeros(Float64, (latsize, lonsize))
 read!(
-    joinpath(@__DIR__, "data/scaleheightwatervapordensityannual_$(string(latsize))_x_$(string(lonsize)).bin"),
+    joinpath(artifact"input-maps", "scaleheightwatervapordensityannual_$(string(latsize))_x_$(string(lonsize)).bin"),
     scaleheightrhodata
 )
 
 surfaceheightdata = zeros(Float64, (latsize, lonsize))
 read!(
-    joinpath(@__DIR__, "data/surfaceheightannual_$(string(latsize))_x_$(string(lonsize)).bin"),
+    joinpath(artifact"input-maps", "surfaceheightannual_$(string(latsize))_x_$(string(lonsize)).bin"),
     surfaceheightdata
 )
 

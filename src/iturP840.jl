@@ -5,7 +5,7 @@ This Recommendation provides methods to predict the attenuation due to clouds an
 =#
 
 using ItuRPropagation
-
+using Artifacts
 version = ItuRVersion("ITU-R", "P.840", 8, "(08/2019)")
 
 #region initialization
@@ -27,7 +27,7 @@ columnarcontentdata = zeros(Float64, (npsannual, latsize, lonsize))
 for nps in range(1, npsannual)
     columndata = zeros(Float64, (latsize, lonsize))
     read!(
-        joinpath(@__DIR__, "data/reducedcloudliquidwaterannual_$(string(latsize))_x_$(string(lonsize))_x_$(filespsannual[nps]).bin"),
+        joinpath(artifact"input-maps", "reducedcloudliquidwaterannual_$(string(latsize))_x_$(string(lonsize))_x_$(filespsannual[nps]).bin"),
         columndata
     )
     for lat in 1:latsize

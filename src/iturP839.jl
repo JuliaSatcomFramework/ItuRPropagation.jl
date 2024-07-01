@@ -5,7 +5,7 @@ This Recommendation provides a method to predict the rain height for propagation
 =#
 
 using ItuRPropagation
-
+using Artifacts
 const version = ItuRVersion("ITU-R", "P.839", 4, "(09/2013)")
 
 #region initialization
@@ -23,7 +23,7 @@ const isothermheightdata = zeros(Float64, latsize, lonsize)
 function initialize()
     initialized[] && return nothing
     read!(
-        joinpath(@__DIR__, "data/isothermheighth0annual_$(string(latsize))_x_$(string(lonsize)).bin"),
+        joinpath(artifact"input-maps", "isothermheighth0annual_$(string(latsize))_x_$(string(lonsize)).bin"),
         isothermheightdata
     )
     initialized[] = true

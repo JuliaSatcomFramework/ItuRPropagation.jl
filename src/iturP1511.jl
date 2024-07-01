@@ -6,7 +6,7 @@ height data for the prediction of propagation effects for Earth-space paths in I
 =#
 
 using ItuRPropagation
-
+using Artifacts
 const version = ItuRVersion("ITU-R", "P.1511", 2, "(08/2019)")
 
 #region initialization
@@ -24,7 +24,7 @@ const initialized = Ref{Bool}(false)
 function initialize()
     initialized[] && return nothing
 read!(
-    joinpath(@__DIR__, "data/topo_$(string(topolatsize))_x_$(string(topolonsize)).bin"),
+    joinpath(artifact"input-maps", "topo_$(string(topolatsize))_x_$(string(topolonsize)).bin"),
     topoheightdata
 )
     initialized[] = true

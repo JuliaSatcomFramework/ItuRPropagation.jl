@@ -1,2 +1,6 @@
 [input-maps]
-git-tree-sha1 = "3b1cea787ba8cc0c28353f4f51c52919b2022c45"
+git-tree-sha1 = "761159e8f1b719fd9bcda4757089ac64eb70a2d5"
+
+    [[input-maps.download]]
+    sha256 = "02c9e331d09a5362f7b46a9ce78d483cce47e2f0cb1389a48c633c50626ed268"
+    url = "https://github.com/disberd/ItuRPropagation.jl/releases/download/input-maps-artifact/input_maps.tar.gz"
