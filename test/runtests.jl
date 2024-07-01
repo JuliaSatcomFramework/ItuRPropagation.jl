@@ -1,5 +1,11 @@
 using TestItemRunner
 
+@testitem "Aqua" begin
+    using Aqua
+    using ItuRPropagation
+    Aqua.test_all(ItuRPropagation)
+end
+
 @testitem "P.618-14 - Propagation data and prediction methods required for the design of Earth-space telecommunication systems" begin
     include("iturP618test.jl")
 end
