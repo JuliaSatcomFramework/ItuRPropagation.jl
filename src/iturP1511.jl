@@ -35,6 +35,7 @@ end
 
 """
     topographicheight(latlon::LatLon)
+    topographicheight(lat::Float64, lon::Float64)
 
 Calculates topographic height based on bicubic interpolation in Section 1 of Annex 1.
 
@@ -44,16 +45,17 @@ Calculates topographic height based on bicubic interpolation in Section 1 of Ann
 # Return
 - `I::Real`: height (km)
 """
-function topographicheight(latlon::LatLon)
+topographicheight(latlon::LatLon) = topographicheight(latlon.lat, latlon.lon)
+function topographicheight(lat, lon)
     initialize()
-    latrange = searchsorted(topolatvalues, latlon.lat)
-    lonrange = searchsorted(topolonvalues, latlon.lon)
+    latrange = searchsorted(topolatvalues, lat)
+    lonrange = searchsorted(topolonvalues, lon)
     R = latrange.stop - 1
     C = lonrange.stop - 1
 
     δg = 1 / 12
-    r = ((90.125 + latlon.lat) / δg) + 1
-    c = ((180.125 + latlon.lon) / δg) + 1
+    r = ((90.125 + lat) / δg) + 1
+    c = ((180.125 + lon) / δg) + 1
 
     # row interpolation
     δ = (c - C)

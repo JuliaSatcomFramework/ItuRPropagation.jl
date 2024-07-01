@@ -34,6 +34,7 @@ end
 
 """
     rainheightannual(latlon::LatLon)
+    rainheightannual(lat::Real, lon::Real)
 
 Computes rain height based on the equation in Section 2.
 h0 will be interpolated for the given latitude and longitude.
@@ -44,8 +45,8 @@ h0 will be interpolated for the given latitude and longitude.
 # Return
 - `hR::Real`: mean annual rain height above mean sea level
 """
-function rainheightannual(latlon::LatLon)
-    h0 = isothermheight(latlon)
+function rainheightannual(args...)
+    h0 = isothermheight(args...)
 
     hR = h0 + 0.36  # equation in section 2
     return hR
@@ -54,6 +55,7 @@ end
 
 """
     isothermheight(latlon::LatLon)
+    isothermheight(lat::Real, lon::Real)
 
 Calculates isothermic height based on bilinear interpolation.
 h0 will be interpolated for the given latitude and longitude.
@@ -64,15 +66,16 @@ h0 will be interpolated for the given latitude and longitude.
 # Return
 - `h0::Real`: mean annual 0°C isotherm height above mean sea level
 """
-function isothermheight(latlon::LatLon)
+isothermheight(latlon::LatLon) = isothermheight(latlon.lat, latlon.lon)
+function isothermheight(lat, lon)
     initialize()
-    latrange = searchsorted(latvalues, latlon.lat)
-    lonrange = searchsorted(lonvalues, latlon.lon)
+    latrange = searchsorted(latvalues, lat)
+    lonrange = searchsorted(lonvalues, lon)
     R = latrange.stop
     C = lonrange.stop
 
-    r = ((latlon.lat + 90) / 1.5) + 1
-    c = ((latlon.lon + 180) / 1.5) + 1
+    r = ((lat + 90) / 1.5) + 1
+    c = ((lon + 180) / 1.5) + 1
 
     h0 = (
         isothermheightdata[R, C] * ((R + 1 - r) * (C + 1 - c)) +
