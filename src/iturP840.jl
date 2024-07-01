@@ -6,36 +6,44 @@ This Recommendation provides methods to predict the attenuation due to clouds an
 
 using ItuRPropagation
 using Artifacts
-version = ItuRVersion("ITU-R", "P.840", 8, "(08/2019)")
+
+const version = ItuRVersion("ITU-R", "P.840", 8, "(08/2019)")
 
 #region initialization
 
-latsize = 161 + 1 # number of latitude points (-90, 90, 1.125) plus one extra row for interpolation
-lonsize = 321 + 1 # number of longitude points (-180, 180, 1.125) plus one extra column for interpolation
+const latsize = 161 + 1 # number of latitude points (-90, 90, 1.125) plus one extra row for interpolation
+const lonsize = 321 + 1 # number of longitude points (-180, 180, 1.125) plus one extra column for interpolation
 
 # exceedance probability, section 1 of Annex 1 of ITU-R P.840-8
-psannual = [0.1, 0.2, 0.3, 0.5, 1, 2, 3, 5, 10, 20, 30, 50, 60, 70, 80, 90, 95, 99]
-npsannual = length(psannual)
+const psannual = [0.1, 0.2, 0.3, 0.5, 1, 2, 3, 5, 10, 20, 30, 50, 60, 70, 80, 90, 95, 99]
+const npsannual = length(psannual)
 
 # exceedance probability values for reading files
-filespsannual = ["01", "02", "03", "05", "1", "2", "3", "5", "10", "20", "30", "50", "60", "70", "80", "90", "95", "99"]
+const filespsannual = ["01", "02", "03", "05", "1", "2", "3", "5", "10", "20", "30", "50", "60", "70", "80", "90", "95", "99"]
 
-latvalues = [(-90.0 + (i - 1) * 1.125) for i in 1:latsize]
-lonvalues = [(-180.0 + (j - 1) * 1.125) for j in 1:lonsize]
+const latvalues = [(-90.0 + (i - 1) * 1.125) for i in 1:latsize]
+const lonvalues = [(-180.0 + (j - 1) * 1.125) for j in 1:lonsize]
 
-columnarcontentdata = zeros(Float64, (npsannual, latsize, lonsize))
-for nps in range(1, npsannual)
+const columnarcontentdata = zeros(Float64, (npsannual, latsize, lonsize))
+
+const initialized = Ref{Bool}(false)
+
+function initialize()
+    initialized[] && return nothing
     columndata = zeros(Float64, (latsize, lonsize))
-    read!(
-        joinpath(artifact"input-maps", "reducedcloudliquidwaterannual_$(string(latsize))_x_$(string(lonsize))_x_$(filespsannual[nps]).bin"),
-        columndata
-    )
-    for lat in 1:latsize
-        for lon in 1:lonsize
-            columnarcontentdata[nps, lat, lon] = columndata[lat, lon]
+    for nps in range(1, npsannual)
+        read!(
+            joinpath(artifact"input-maps", "reducedcloudliquidwaterannual_$(string(latsize))_x_$(string(lonsize))_x_$(filespsannual[nps]).bin"),
+            columndata
+        )
+        for lat in 1:latsize
+            for lon in 1:lonsize
+                columnarcontentdata[nps, lat, lon] = columndata[lat, lon]
+            end
         end
     end
-    columndata = 0
+    initialized[] = true
+    return nothing
 end
 
 #endregion initialization
@@ -58,6 +66,7 @@ function _columnarcontent(
     latlon::LatLon,
     p::Real,
 )
+    initialize()
     # Section 3.1 step a
     prange = searchsorted(psannual, p)
     pindexbelow = prange.stop
@@ -148,6 +157,7 @@ function _Kₗ(
 
     η = (2 + ϵ′) / ϵ′′     # equation 3
     K = 0.819 * f / (ϵ′′ * (1 + η * η))     # equation 2
+    return K
 end
 
 #endregion internal functions
@@ -182,6 +192,7 @@ function cloudattenuation(
 
     # equation 12
     Acloud = Lred * K / sin(deg2rad(θ))
+    return Acloud
 end
 
 end # module ItuRP840

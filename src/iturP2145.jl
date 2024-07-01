@@ -9,57 +9,59 @@ gaseous attenuation and related effects on terrestrial and Earth-space paths.
 using ItuRPropagation
 using Artifacts
 
-version = ItuRVersion("ITU-R", "P.2145", 0, "(08/2022)")
+const version = ItuRVersion("ITU-R", "P.2145", 0, "(08/2022)")
 
 #region initialization
 
-latsize = 721 + 1 # number of latitude points (-90, 90, 0.25) plus one extra row for interpolation
-lonsize = 1441 + 1 # number of longitude points (-180, 180, 0.25) plus one extra column for interpolation
+const latsize = 721 + 1 # number of latitude points (-90, 90, 0.25) plus one extra row for interpolation
+const lonsize = 1441 + 1 # number of longitude points (-180, 180, 0.25) plus one extra column for interpolation
 
 # exceedance probability, section 1 of ITU-R P.836-6
-psannual = [0.01, 0.02, 0.03, 0.05, 0.1, 0.2, 0.3, 0.5, 1, 2, 3, 5, 10, 20, 30, 50, 60, 70, 80, 90, 95, 99]
-npsannual = length(psannual)
+const psannual = [0.01, 0.02, 0.03, 0.05, 0.1, 0.2, 0.3, 0.5, 1, 2, 3, 5, 10, 20, 30, 50, 60, 70, 80, 90, 95, 99]
+const npsannual = length(psannual)
 
 # exceedance probability values for reading files
-filespsannual = ["001", "002", "003", "005", "01", "02", "03", "05", "1", "2", "3", "5", "10", "20", "30", "50", "60", "70", "80", "90", "95", "99"]
+const filespsannual = ["001", "002", "003", "005", "01", "02", "03", "05", "1", "2", "3", "5", "10", "20", "30", "50", "60", "70", "80", "90", "95", "99"]
 
-latvalues = [(-90.0 + (i - 1) * 0.25) for i in 1:latsize]
-lonvalues = [(-180.0 + (j - 1) * 0.25) for j in 1:lonsize]
+const latvalues = [(-90.0 + (i - 1) * 0.25) for i in 1:latsize]
+const lonvalues = [(-180.0 + (j - 1) * 0.25) for j in 1:lonsize]
 
-surfacetemperatureannualdata = zeros(Float64, (npsannual, latsize, lonsize))
-surfacerhodata = zeros(Float64, (npsannual, latsize, lonsize))
-for nps in range(1, npsannual)
+const surfacetemperatureannualdata = zeros(Float64, (npsannual, latsize, lonsize))
+const surfacerhodata = zeros(Float64, (npsannual, latsize, lonsize))
+const scaleheightrhodata = zeros(Float64, (latsize, lonsize))
+const surfaceheightdata = zeros(Float64, (latsize, lonsize))
+
+const initialized = Ref{Bool}(false)
+
+function initialize()
+    initialized[] && return nothing
     tempdata = zeros(Float64, (latsize, lonsize))
-    rhodata = zeros(Float64, (latsize, lonsize))
-    read!(
-        joinpath(artifact"input-maps", "surfacetemperatureannual_$(string(latsize))_x_$(string(lonsize))_x_$(filespsannual[nps]).bin"),
-        tempdata
-    )
-    read!(
-        joinpath(artifact"input-maps", "surfacewatervapordensityannual_$(string(latsize))_x_$(string(lonsize))_x_$(filespsannual[nps]).bin"),
-        rhodata
-    )
-    for lat in 1:latsize
-        for lon in 1:lonsize
-            surfacetemperatureannualdata[nps, lat, lon] = tempdata[lat, lon]
-            surfacerhodata[nps, lat, lon] = rhodata[lat, lon]
-        end
+    for nps in range(1, npsannual)
+        read!(
+            joinpath(artifact"input-maps", "surfacetemperatureannual_$(string(latsize))_x_$(string(lonsize))_x_$(filespsannual[nps]).bin"),
+            tempdata
+        )
+        @views surfacetemperatureannualdata[nps, :, :] = tempdata
+        read!(
+            joinpath(artifact"input-maps", "surfacewatervapordensityannual_$(string(latsize))_x_$(string(lonsize))_x_$(filespsannual[nps]).bin"),
+            tempdata
+        )
+        @views surfacerhodata[nps, :, :] = tempdata
     end
-    tempdata = 0
-    rhodata = 0
+    read!(
+        joinpath(artifact"input-maps", "scaleheightwatervapordensityannual_$(string(latsize))_x_$(string(lonsize)).bin"),
+        scaleheightrhodata
+    )
+
+    read!(
+        joinpath(artifact"input-maps", "surfaceheightannual_$(string(latsize))_x_$(string(lonsize)).bin"),
+        surfaceheightdata
+    )
+    initialized[] = true
+    return nothing
 end
 
-scaleheightrhodata = zeros(Float64, (latsize, lonsize))
-read!(
-    joinpath(artifact"input-maps", "scaleheightwatervapordensityannual_$(string(latsize))_x_$(string(lonsize)).bin"),
-    scaleheightrhodata
-)
 
-surfaceheightdata = zeros(Float64, (latsize, lonsize))
-read!(
-    joinpath(artifact"input-maps", "surfaceheightannual_$(string(latsize))_x_$(string(lonsize)).bin"),
-    surfaceheightdata
-)
 
 #endregion initialization
 
@@ -80,6 +82,7 @@ function surfacetemperatureannual(
     latlon::LatLon,
     p::Real,
 )
+    initialize()
     prange = searchsorted(psannual, p)
     pindexbelow = prange.stop
     pindexabove = prange.start
@@ -146,6 +149,7 @@ function surfacewatervapordensityannual(
     p::Real,
     hs::Union{Missing,Real}=missing
 )
+    initialize()
     prange = searchsorted(psannual, p)
     pindexbelow = prange.stop
     pindexabove = prange.start

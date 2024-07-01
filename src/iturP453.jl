@@ -9,21 +9,29 @@ Recommendation ITU-R P.453 provides methods to estimate the radio refractive ind
 
 using ItuRPropagation
 using Artifacts
-version = ItuRVersion("ITU-R", "P.453", 14, "(08/2019)")
+const version = ItuRVersion("ITU-R", "P.453", 14, "(08/2019)")
 
 #region initialization
 
-latsize = 241 + 1 # number of latitude points (-90, 90, 0.75) plus one extra row for interpolation
-lonsize = 481 + 1 # number of longitude points (-180, 180, 0.75) plus one extra column for interpolation
+const latsize = 241 + 1 # number of latitude points (-90, 90, 0.75) plus one extra row for interpolation
+const lonsize = 481 + 1 # number of longitude points (-180, 180, 0.75) plus one extra column for interpolation
 
-latvalues = [(-90.0 + (i - 1) * 0.75) for i in 1:latsize]
-lonvalues = [(-180.0 + (j - 1) * 0.75) for j in 1:lonsize]
+const latvalues = [(-90.0 + (i - 1) * 0.75) for i in 1:latsize]
+const lonvalues = [(-180.0 + (j - 1) * 0.75) for j in 1:lonsize]
 
-wettermdata_50 = zeros(Float64, (latsize, lonsize))
-read!(
-    joinpath(artifact"input-maps", "wettermsurfacerefractivityannual_50_$(string(latsize))_x_$(string(lonsize)).bin"),
-    wettermdata_50
-)
+const wettermdata_50 = zeros(Float64, (latsize, lonsize))
+
+const initialized = Ref{Bool}(false)
+
+function initialize()
+    initialized[] && return nothing
+    read!(
+        joinpath(artifact"input-maps", "wettermsurfacerefractivityannual_50_$(string(latsize))_x_$(string(lonsize)).bin"),
+        wettermdata_50
+    )
+    initialized[] = true
+    return nothing
+end
 
 #endregion initialization
 
@@ -47,6 +55,7 @@ function _saturationwatervaporpressure(T::Real, P::Real, ::Val{EnumWater})
     EF = 1 + 1e-4 * (7.2 + P * (0.0320 + 5.9e-6 * T * T))
     a, b, c, d = 6.1121, 18.678, 257.14, 234.5
     eₛ = EF * a * exp((b - T / d) * T / (T + c))     # equation 9
+    return eₛ
 end
 
 
@@ -68,6 +77,7 @@ function _saturationwatervaporpressure(T::Real, P::Real, ::Val{EnumIce})
     EF = 1 + 1e-4 * (2.2 + P * (0.0383 + 6.4e-6 * T * T))
     a, b, c, d = 6.1115, 23.036, 279.82, 333.7
     eₛ = EF * a * exp((b - T / d) * T / (T + c))     # equation 9
+    return eₛ
 end
 
 #endregion internal functions
@@ -92,6 +102,7 @@ function radiorefractiveindex(
 )
     N = 77.6 * (Pd / T) + 72 * (eₛ / T) + 3.75e5 * (eₛ / (T * T))     # equation 2
     n = 1 + N * (1e-6)     # equation 1
+    return n
 end
 
 
@@ -112,6 +123,7 @@ function drytermradiorefractivity(
     Pd::Real
 )
     Ndry = 77.6 * (Pd / T)     # equation 3
+    return Ndry
 end
 
 
@@ -132,6 +144,7 @@ function wettermradiorefractivity(
     eₛ::Real
 )
     Nwet = 72 * (eₛ / T) + 3.75e5 * (eₛ / (T * T))     # equation 4
+    return Nwet
 end
 
 
@@ -163,6 +176,7 @@ function vaporpressure(
         throw(ArgumentError("Invalid hydrometer value in ItuRP453.vaporpressure."))
     end
     e = H * eₛ / 100.0     # equation 8
+    return e
 end
 
 
@@ -178,6 +192,7 @@ Interpolates wet term of the surface refractivity at an exceedance probability o
 - `Nwet::Real`: wet term of the surface refractivity (ppm)
 """
 function wettermsurfacerefractivityannual_50(latlon::LatLon)
+    initialize()
     latrange = searchsorted(latvalues, latlon.lat)
     lonrange = searchsorted(lonvalues, latlon.lon)
     R = latrange.stop
@@ -193,6 +208,8 @@ function wettermsurfacerefractivityannual_50(latlon::LatLon)
         wettermdata_50[R, C+1] * ((R + 1 - r) * (c - C)) +
         wettermdata_50[R+1, C+1] * ((r - R) * (c - C))
     )
+
+    return Nwet
 end
 
 end # module ItuRP453

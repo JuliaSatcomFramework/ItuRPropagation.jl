@@ -34,10 +34,10 @@ const r001data = zeros(Float64, annuallatsize, annuallonsize)
 
 function initialize()
     initialized[] && return nothing
-read!(
-    joinpath(artifact"input-maps", "rainfallrate001annual_$(string(annuallatsize))_x_$(string(annuallonsize)).bin"),
-    r001data
-)
+    read!(
+        joinpath(artifact"input-maps", "rainfallrate001annual_$(string(annuallatsize))_x_$(string(annuallonsize)).bin"),
+        r001data
+    )
     initialized[] = true
     return nothing
 end
