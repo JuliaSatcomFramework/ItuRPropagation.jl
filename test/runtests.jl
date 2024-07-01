@@ -4,6 +4,10 @@ using TestItemRunner
     include("iturP837test.jl")
 end
 
+@testitem "P.838-3 - Specific attenuation model for rain for use in prediction methods" begin
+    include("iturP837test.jl")
+end
+
 @testitem "P.839-4 - Rain Height Model" begin
     include("iturP839test.jl")
 end
