@@ -1,12 +1,12 @@
 name = "ItuRPropagation"
 uuid = "a73e506c-35e8-47b2-857c-dfce7ead1349"
-authors = ["Hillary Kchao <hillary.kchao@gmail.com>"]
-repo = "https://github.com/HillaryKchao/ItuRPropagation.jl"
-version = "0.1.1"
+authors = ["Hillary Kchao <hillary.kchao@gmail.com>", "Alberto Mengali <disberd@gmail.com>"]
+repo = "https://github.com/disberd/ItuRPropagation.jl"
+version = "0.2.0-DEV"
 
 [deps]
-DelimitedFiles = "8bb1440f-4735-579b-a4ab-409b98df4dab"
-Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+Artifacts = "56f22d72-fd6d-98f1-02f0-08ddc0907c33"
 
 [compat]
 julia = "1.8.2"
+Artifacts = "1"

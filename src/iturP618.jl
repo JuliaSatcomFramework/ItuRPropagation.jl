@@ -6,10 +6,12 @@ systems operating in either the Earth-to-space or space-to-Earth direction.
 =#
 
 using ItuRPropagation
+using ItuRPropagation: tilt_from_polarization
+using Artifacts
 
-version = ItuRVersion("ITU-R", "P.618", 13, "(12/2017)")
+const version = ItuRVersion("ITU-R", "P.618", 14, "(08/2023)")
 
-Rₑ = 8500 # effective radius of the Earth (km)
+const Rₑ = 8500 # effective radius of the Earth (km)
 
 """
     scintillationattenuation(latlon::LatLon, f::Real, p::Real, θ::Real, D::Real, η::Real=60.0, hL::Real=1000.0)
@@ -77,30 +79,42 @@ function scintillationattenuation(
 
     # step 9
     Ascintillation = aₚ * σ     # equation 46
+    return Ascintillation
 end
 
 
 """
-    rainattenuation(latlon::LatLon, f::Real, p::Real, θ::Real, polarization::IturEnum=EnumCircularPolarization)
+    rainattenuation(lat::Real, lon::Real, f::Real, p::Real, θ::Real, polarization::IturEnum=EnumCircularPolarization; kwargs...)
 
 Computes rain attenuation based on Section 2.2.1.1.
     
 # Arguments
-- `latlon::LatLon`: (lat, lon) struct in degrees
+- `lat::Real`: latitude (degrees)
+- `lon::Real`: longitude (degrees)
 - `f::Real`: frequency (GHz),
 - `p::Real`: exceedance probability (%)
 - `θ::Real`: elevation angle (degrees)
 - `polarization::IturEnum=EnumCircularPolarization`: polarization (EnumHorizontalPolarization, EnumVerticalPolarization, or EnumCircularPolarization) 
+  - Note that this last argument is overridden by the keyword argument `polarization_angle` if provided
+
+# Keyword Arguments
+- `h_r` or `hᵣ`: Rain height [Km] to be used for the computation. Defaults to `ItuRP1511.topographicheight(lat, lon)`
+- `polarization_angle`: Tilt angle [degrees] of the electric field polarization w.r.t. horizontal polarization. Defaults to 45, corresponding to a circularly polarized field.
 
 # Return
-- `Aₚ::Real`: rain attenuation (dB)
+- `Aₚ::Float64`: rain attenuation (dB)
 """
+rainattenuation(latlon::LatLon, args...; kwargs...) = rainattenuation(latlon.lat, latlon.lon, args...; kwargs...)::Float64
 function rainattenuation(
-    latlon::LatLon,
+    lat::Real,
+    lon::Real,
     f::Real,
     p::Real,
     θ::Real,
-    polarization::IturEnum=EnumCircularPolarization
+    polarization::IturEnum=EnumCircularPolarization;
+    polarization_angle = tilt_from_polarization(polarization),
+    h_s::Real = ItuRP1511.topographicheight(lat, lon),
+    hₛ = h_s,
 )
     # first paragraph of 2.2.1.1
     (f > 55 || f < 1) && @warn("ItuR618.rainattenuation only supports frequencies between 1 and 55 GHz.\nThe given frequency $f GHz is outside this range.")
@@ -109,33 +123,32 @@ function rainattenuation(
     (p < 0.001 || p > 5) && @warn("ItuR618.rainattenuation only supports exceedance probabilities between 0.001% and 5%.\nThe given exceedance probability $p% is outside this range.")
 
     # step 1
-    hᵣ = ItuRP839.rainheightannual(latlon)
+    hᵣ = ItuRP839.rainheightannual(lat, lon)
 
     # step 2
-    hₛ = ItuRP1511.topographicheight(latlon)
-
-    sinθ = sin(deg2rad(θ))
+    sinθ = sind(θ)
     if (hᵣ - hₛ) <= 0
         return 0.0
     end
     
-    Lₛ = θ >= 5 ? (hᵣ - hₛ) / sinθ : 2 * (hᵣ - hₛ) / (sqrt(sinθ * sinθ + (2 * (hᵣ - hₛ)) / Rₑ) + sinθ)
+    Lₛ = θ >= 5 ? (hᵣ - hₛ) / sinθ : 2 * (hᵣ - hₛ) / (sqrt(sinθ^2 + (2 * (hᵣ - hₛ)) / Rₑ) + sinθ)
 
     # step 3
-    cosθ = cos(deg2rad(θ))
+    cosθ = cosd(θ)
     Lg = Lₛ * cosθ
 
     # step 4
-    R001 = ItuRP837.rainfallrate001(latlon)
+    R001 = ItuRP837.rainfallrate001(lat, lon)
+    R001 ≈ 0 && return 0.0
 
     # step 5
-    γᵣ = ItuRP838.rainspecificattenuation(f, θ, R001, polarization)
+    γᵣ = ItuRP838.rainspecificattenuation(f, θ, R001, polarization_angle)
 
-    # step 6
+    # step 6 - horizontal reduction factor
     r001 = 1 / (1 + 0.78 * sqrt((Lg * γᵣ) / f) - 0.38 * (1 - exp(-2 * Lg)))
 
     # step 7
-    abslat = abs(latlon.lat)
+    abslat = abs(lat)
     ζ = rad2deg(atan((hᵣ - hₛ) / (Lg * r001)))
     Lᵣ = ζ > θ ? (Lg * r001) / cosθ : (hᵣ - hₛ) / sinθ
     χ = abslat < 36 ? 36 - abslat : 0.0
@@ -205,6 +218,7 @@ function raindiversitygain(
 
     # step 5
     G = Gd * Gf * Gθ * GΨ     # equation 39
+    return G
 end
 
 """

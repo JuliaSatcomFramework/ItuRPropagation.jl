@@ -8,8 +8,9 @@ basis for the estimation of system performance.
 =#
 
 using ItuRPropagation
+using Artifacts
 
-version = ItuRVersion("ITU-R", "P.372", 16, "(08/2022)")
+const version = ItuRVersion("ITU-R", "P.372", 16, "(08/2022)")
 
 """
     spacestationnoisetemperature(A::Real)

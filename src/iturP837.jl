@@ -16,26 +16,36 @@ When reliable long-term local rainfall rate data is available with integration t
 =#
 
 using ItuRPropagation
+using Artifacts
 
-version = ItuRVersion("ITU-R", "P.837", 7, "(06/2017)")
+const version = ItuRVersion("ITU-R", "P.837", 7, "(06/2017)")
 
 #region initialization
 
-annuallatsize = 1441 + 1 # number of latitude points (-90, 90, 0.125) plus one extra row for interpolation
-annuallonsize = 2881 + 1 # number of longitude points (-180, 180, 0.125) plus one extra column for interpolation
+const annuallatsize = 1441 + 1 # number of latitude points (-90, 90, 0.125) plus one extra row for interpolation
+const annuallonsize = 2881 + 1 # number of longitude points (-180, 180, 0.125) plus one extra column for interpolation
 
-latvaluesannual = [(-90.0 + (i - 1) * 0.125) for i in 1:annuallatsize]
-lonvaluesannual = [(-180.0 + (j - 1) * 0.125) for j in 1:annuallonsize]
+const latvaluesannual = [(-90.0 + (i - 1) * 0.125) for i in 1:annuallatsize]
+const lonvaluesannual = [(-180.0 + (j - 1) * 0.125) for j in 1:annuallonsize]
 
-r001data = zeros(Float64, annuallatsize, annuallonsize)
-read!(
-    joinpath(@__DIR__, "data/rainfallrate001annual_$(string(annuallatsize))_x_$(string(annuallonsize)).bin"),
-    r001data
-)
+const initialized = Ref{Bool}(false)
+
+const r001data = zeros(Float64, annuallatsize, annuallonsize)
+
+function initialize()
+    initialized[] && return nothing
+    read!(
+        joinpath(artifact"input-maps", "rainfallrate001annual_$(string(annuallatsize))_x_$(string(annuallonsize)).bin"),
+        r001data
+    )
+    initialized[] = true
+    return nothing
+end
 
 #endregion initialization
 
 """
+    rainfallrate001(latlon::LatLon)
     rainfallrate001(lat::Float64, lon::Float64)
 
 Computes rainfall rate exceeded 0.01% via bi-linear interpolation as described in Annex 1.
@@ -46,15 +56,17 @@ Computes rainfall rate exceeded 0.01% via bi-linear interpolation as described i
 # Return
 - `R::Float64`: annual rainfall rate exceeded 0.01%
 """
-function rainfallrate001(latlon::LatLon)
-    latrange = searchsorted(latvaluesannual, latlon.lat)
-    lonrange = searchsorted(lonvaluesannual, latlon.lon)
+rainfallrate001(latlon::LatLon) = rainfallrate001(latlon.lat, latlon.lon)
+function rainfallrate001(lat, lon)
+    initialize()
+    latrange = searchsorted(latvaluesannual, lat)
+    lonrange = searchsorted(lonvaluesannual, lon)
     R = latrange.stop
     C = lonrange.stop
 
     δg = 0.125
-    r = ((latlon.lat + 90) / δg) + 1
-    c = ((latlon.lon + 180) / δg) + 1
+    r = ((lat + 90) / δg) + 1
+    c = ((lon + 180) / δg) + 1
 
     R = (
         r001data[R, C] * ((R + 1 - r) * (C + 1 - c)) +

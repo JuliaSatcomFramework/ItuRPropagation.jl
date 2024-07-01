@@ -1,4 +1,7 @@
 # ItuRPropagations
+[![Build Status](https://github.com/disberd/ItuRPropagation.jl/actions/workflows/CI.yml/badge.svg?branch=master)](https://github.com/disberd/ItuRPropagation.jl/actions/workflows/CI.yml?query=branch%3Amaster)
+[![Coverage](https://codecov.io/gh/disberd/ItuRPropagation.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/disberd/ItuRPropagation.jl)
+[![Aqua QA](https://raw.githubusercontent.com/JuliaTesting/Aqua.jl/master/badge.svg)](https://github.com/JuliaTesting/Aqua.jl)
 A Julia implementation of the ITU-Recommendations for space links covering cloud, gaseous, rain, and scintillation attenuations.
 
 > [!NOTE]
@@ -8,13 +11,10 @@ A Julia implementation of the ITU-Recommendations for space links covering cloud
 > This fork also includes a force push to delete the big files used as input and previously stored inside the `src/data` folder from the git history. This to avoid downloading >100Mb of data at each git clone of the package
 
 ## Installation
-Using the Julia REPL and going to the package manager, you can install this implementation using
+This fork is not currently registered in the general registry (while the original repository is).
+To add it, you have then to explicitly point to this repository with the folloing command in the `Pkg` repl mode
 ```
-add ItuRPropagation
-```
-Alternatively, you can add it directly from the GitHub repository link by going to the package manager and using
-```
-add https://github.com/HillaryKchao/ItuRPropagation.jl
+add https://github.com/disberd/ItuRPropagation.jl
 ```
 You can check if installation was successful by exiting the package manager and using
 ```
