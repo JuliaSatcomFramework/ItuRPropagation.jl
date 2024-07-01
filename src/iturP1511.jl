@@ -7,21 +7,29 @@ height data for the prediction of propagation effects for Earth-space paths in I
 
 using ItuRPropagation
 
-version = ItuRVersion("ITU-R", "P.1511", 2, "(08/2019)")
+const version = ItuRVersion("ITU-R", "P.1511", 2, "(08/2019)")
 
 #region initialization
 
 const topolatsize::Int64 = 2164
 const topolonsize::Int64 = 4324
 
-topolatvalues = [(-90.125 + (i - 1) * (1 / 12)) for i in 1:topolatsize]
-topolonvalues = [(-180.125 + (j - 1) * (1 / 12)) for j in 1:topolonsize]
+const topolatvalues = [(-90.125 + (i - 1) * (1 / 12)) for i in 1:topolatsize]
+const topolonvalues = [(-180.125 + (j - 1) * (1 / 12)) for j in 1:topolonsize]
 
-topoheightdata = zeros(Float64, (topolatsize, topolonsize))
+const topoheightdata = zeros(Float64, (topolatsize, topolonsize))
+
+const initialized = Ref{Bool}(false)
+
+function initialize()
+    initialized[] && return nothing
 read!(
     joinpath(@__DIR__, "data/topo_$(string(topolatsize))_x_$(string(topolonsize)).bin"),
     topoheightdata
 )
+    initialized[] = true
+    return nothing
+end
 
 #endregion initialization
 
@@ -37,6 +45,7 @@ Calculates topographic height based on bicubic interpolation in Section 1 of Ann
 - `I::Real`: height (km)
 """
 function topographicheight(latlon::LatLon)
+    initialize()
     latrange = searchsorted(topolatvalues, latlon.lat)
     lonrange = searchsorted(topolonvalues, latlon.lon)
     R = latrange.stop - 1
