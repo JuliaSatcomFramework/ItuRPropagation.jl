@@ -4,6 +4,9 @@ A Julia implementation of the ITU-Recommendations for space links covering cloud
 > [!NOTE]
 > This is a fork of the original repository aimed at adding some functionality and reducing allocations to speed up the computations. This version will be for the time being increased in version and tracked on a private registry for internal use. Inclusion of the changes in this repo to the upstream repository will be done if the original author @HillaryKChao agrees.
 
+> [!WARNING]
+> This fork also includes a force push to delete the big files used as input and previously stored inside the `src/data` folder from the git history. This to avoid downloading >100Mb of data at each git clone of the package
+
 ## Installation
 Using the Julia REPL and going to the package manager, you can install this implementation using
 ```
