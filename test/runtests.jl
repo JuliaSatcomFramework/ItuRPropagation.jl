@@ -1,5 +1,9 @@
 using TestItemRunner
 
+@testitem "P.618-14 - Propagation data and prediction methods required for the design of Earth-space telecommunication systems" begin
+    include("iturP618test.jl")
+end
+
 @testitem "P.837-7 - Characteristics of precipitation for propagation modelling" begin
     include("iturP837test.jl")
 end

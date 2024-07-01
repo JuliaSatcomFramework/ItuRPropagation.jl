@@ -6,6 +6,7 @@ Recommendation ITU-R P.838-3 recommends the procedure for obtaining the
 =#
 
 using ItuRPropagation
+using ItuRPropagation: tilt_from_polarization
 
 const version = ItuRVersion("ITU-R", "P.838", 8, "03/2005")
 
@@ -91,15 +92,7 @@ Computes rain specific attenuation for horizontal polarization based on equation
 - specific attenuation at given rain rate (dB)
 """
 function rainspecificattenuation(f, θ, R, polarization::IturEnum)
-    τ = if polarization == EnumCircularPolarization
-        45
-    elseif polarization == EnumHorizontalPolarization
-        0
-    elseif polarization == EnumVerticalPolarization
-        90
-    else
-        throw(ArgumentError("Invalid polarization value in ItuRP838.rainspecificattenuation."))
-    end
+    τ = tilt_from_polarization(polarization)
     return rainspecificattenuation(f, θ, R, τ)
 end
 function rainspecificattenuation(

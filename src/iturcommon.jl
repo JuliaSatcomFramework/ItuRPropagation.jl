@@ -40,6 +40,18 @@ Base.show(io::IO, p::LatLon) = print(io, "(", p.lat, ", ", p.lon, ")")
     EnumVerticalPolarization
     EnumCircularPolarization
 end
+function tilt_from_polarization(polarization::IturEnum)
+    τ = if polarization == EnumCircularPolarization
+        45
+    elseif polarization == EnumHorizontalPolarization
+        0
+    elseif polarization == EnumVerticalPolarization
+        90
+    else
+        throw(ArgumentError("Invalid polarization value in ItuRP838.rainspecificattenuation."))
+    end
+    return τ
+end
 
 struct ItuRVersion
     doctype::String
