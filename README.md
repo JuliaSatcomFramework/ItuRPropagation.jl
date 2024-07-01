@@ -1,6 +1,9 @@
 # ItuRPropagations
 A Julia implementation of the ITU-Recommendations for space links covering cloud, gaseous, rain, and scintillation attenuations.
 
+> [!NOTE]
+> This is a fork of the original repository aimed at adding some functionality and reducing allocations to speed up the computations. This version will be for the time being increased in version and tracked on a private registry for internal use. Inclusion of the changes in this repo to the upstream repository will be done if the original author @HillaryKChao agrees.
+
 ## Installation
 Using the Julia REPL and going to the package manager, you can install this implementation using
 ```
