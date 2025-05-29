@@ -5,7 +5,7 @@ Recommendation ITU-R P.835 provides expressions and data for reference standard 
 the calculation of gaseous attenuation on Earth-space paths.
 =#
 
-using ItuRPropagation
+using ..ItuRPropagation
 using Artifacts
 
 const version = ItuRVersion("ITU-R", "P.835", 16, "(12/2017)")
@@ -109,24 +109,30 @@ function standardwatervapordensity(
     P::Array{Float64}, 
     ρ₀::Float64=7.5
 )
-    N = length(h)
-    ρvalues = zeros(Float64, N)
-    for i in 1:N
-        # equation 6 where h₀ = 2; equation 7 where ρ₀=7.5
-        ρ = ρ₀ * exp(-h[i] / 2.0)
-
-        # see paragraph below equation 8 regarding mixing ratio
-        e = ρ * T[i] / 216.7
-        mixingratio = e / P[i]
-        if mixingratio < 2e-6
-            # see paragraph below equation 8 regarding mixing ratio
-            # and recalculate ρ
-            enew = P[i] * 2e-6
-            ρ = enew * 216.7 / T[i]
-        end
-        ρvalues[i] = ρ
+    map(h, T, P) do h, T, P
+        standardwatervapordensity(h, T, P, ρ₀)
     end
-    return ρvalues
+end
+
+function standardwatervapordensity(
+    h::Real, 
+    T::Real, 
+    P::Real, 
+    ρ₀::Real=7.5
+)
+    # equation 6 where h₀ = 2; equation 7 where ρ₀=7.5
+    ρ = ρ₀ * exp(-h / 2.0)
+
+    # see paragraph below equation 8 regarding mixing ratio
+    e = ρ * T / 216.7
+    mixingratio = e / P
+    if mixingratio < 2e-6
+        # see paragraph below equation 8 regarding mixing ratio
+        # and recalculate ρ
+        enew = P * 2e-6
+        ρ = enew * 216.7 / T
+    end
+    return ρ
 end
 
 end # module ItuRP835

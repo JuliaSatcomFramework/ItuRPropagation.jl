@@ -4,7 +4,7 @@ module ItuRP840
 This Recommendation provides methods to predict the attenuation due to clouds and fog on Earth-space paths.
 =#
 
-using ItuRPropagation
+using ..ItuRPropagation
 using Artifacts
 
 const version = ItuRVersion("ITU-R", "P.840", 8, "(08/2019)")

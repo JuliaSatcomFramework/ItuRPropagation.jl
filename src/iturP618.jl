@@ -5,8 +5,8 @@ This Recommendation predicts the various propagation parameters needed in planni
 systems operating in either the Earth-to-space or space-to-Earth direction.
 =#
 
-using ItuRPropagation
-using ItuRPropagation: tilt_from_polarization
+using ..ItuRPropagation
+using ..ItuRPropagation: tilt_from_polarization
 using Artifacts
 
 const version = ItuRVersion("ITU-R", "P.618", 14, "(08/2023)")

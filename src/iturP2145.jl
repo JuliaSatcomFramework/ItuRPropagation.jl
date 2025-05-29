@@ -6,7 +6,7 @@ temperature, surface water vapour density and integrated water vapour content re
 gaseous attenuation and related effects on terrestrial and Earth-space paths.
 =#
 
-using ItuRPropagation
+using ..ItuRPropagation
 using Artifacts
 
 const version = ItuRVersion("ITU-R", "P.2145", 0, "(08/2022)")
