@@ -7,7 +7,7 @@ the Earth’s surface, the galaxy, and man-made sources. Noise figures or temper
 basis for the estimation of system performance.
 =#
 
-using ItuRPropagation
+using ..ItuRPropagation
 using Artifacts
 
 const version = ItuRVersion("ITU-R", "P.372", 16, "(08/2022)")

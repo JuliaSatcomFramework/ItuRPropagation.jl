@@ -18,7 +18,7 @@ d) a Weibull approximation to the slant path water vapour attenuation for use in
     Recommendation ITU-R P.1853.
 =#
 
-using ItuRPropagation
+using ..ItuRPropagation
 using Artifacts
 const version = ItuRVersion("ITU-R", "P.676", 13, "(08/2022)")
 
@@ -319,7 +319,9 @@ function gaseousattenuation(
     hs::Union{Real,Missing}=missing
 )
     ρ₀ = ItuRP2145.surfacewatervapordensityannual(latlon, p, hs)     # equation 62 of ItuRP618
-    ρᵢ = ItuRP835.standardwatervapordensity(hᵢ, Tᵢ, Pᵢ, ρ₀)
+    ρᵢ = map(zip(hᵢ, Tᵢ, Pᵢ)) do (Z, T, P)
+        ItuRP835.standardwatervapordensity(Z; T, P, ρ₀)
+    end
     eᵢ = (Tᵢ .* ρᵢ) ./ (216.7)     # equation 4
     dryPᵢ = Pᵢ - eᵢ     # must be changed to dry air pressure
 
