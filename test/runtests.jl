@@ -14,6 +14,10 @@ end
     include("iturP676test.jl")
 end
 
+@testitem "P.835-7 - Standard atmospheric models" begin
+    include("iturP835test.jl")
+end
+
 @testitem "P.837-7 - Characteristics of precipitation for propagation modelling" begin
     include("iturP837test.jl")
 end
