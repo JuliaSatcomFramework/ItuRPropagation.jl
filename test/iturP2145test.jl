@@ -25,13 +25,21 @@ end
         end
     end
 
-    error_tolerance = 1e-6
+    error_tolerance = 1e-7
 
     @testset "Average Temperature T̄ₛ" begin
         for entry in entries
             (; ll, alt, T_mean) = entry
             T̄ₛ = ItuRP2145.surfacetemperatureannual2(ll; alt)
             @test T̄ₛ ≈ T_mean rtol=error_tolerance
+        end
+    end
+
+    @testset "Average Surface Water Vapour Density ρ̄ₛ" begin
+        for entry in entries
+            (; ll, alt, RHO_mean) = entry
+            ρ̄ₛ = ItuRP2145.surfacewatervapordensityannual2(ll; alt)
+            @test ρ̄ₛ ≈ RHO_mean rtol=error_tolerance
         end
     end
 
