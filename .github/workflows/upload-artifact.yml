@@ -34,11 +34,13 @@ jobs:
         echo "Commit SHA: ${{ github.sha }}" >> ${{ github.event.inputs.filename }}
     
     - name: Upload to artifact_releases
-      uses: softprops/action-gh-release@v1
+      uses: softprops/action-gh-release@v2
       with:
         tag_name: artifact_releases
+        name: artifact_releases
         files: ${{ github.event.inputs.filename }}
         append_body: true
+        make_latest: false
         body: |
           Uploaded artifact: `${{ github.event.inputs.filename }}`
           - Created at: ${{ github.event.time }}
