@@ -1,4 +1,4 @@
-using Pkg.Artifacts
+using Pkg: Artifacts
 using Downloads
 using SHA
 using ZipArchives
@@ -9,7 +9,6 @@ function sha256sum(tarball_path)
         return bytes2hex(sha256(io))
     end
 end
-
 downloads_dir = joinpath(@__DIR__, "..", "downloads")
 isdir(downloads_dir) || mkdir(downloads_dir)
 
@@ -17,3 +16,6 @@ assets_dir = joinpath(@__DIR__, "..", "assets")
 isdir(assets_dir) || mkdir(assets_dir)
 
 artifact_toml = joinpath(@__DIR__, "..", "Artifacts.toml")
+
+release_root_url = "https://github.com/JuliaSatcomFramework/ItuRPropagation.jl/releases/download/artifact_releases/"
+

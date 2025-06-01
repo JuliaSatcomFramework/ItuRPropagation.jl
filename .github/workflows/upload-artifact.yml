@@ -3,18 +3,18 @@ name: Upload Artifact to Release
 on:
   workflow_dispatch:
     inputs:
-      filename:
-        description: 'Name of the dummy file to create'
-        required: false
-        default: 'dummy-artifact.txt'
-      content:
-        description: 'Content for the dummy file'
-        required: false
-        default: 'This is a dummy artifact file created by GitHub Actions'
+      script:
+        description: 'Julia script to execute'
+        required: true
+        type: choice
+        options:
+          - p2145.jl
+      # Add more scripts here as you create them
 
 permissions:
   contents: write
   actions: read
+  pull-requests: write
 
 jobs:
   create-and-upload:
@@ -23,32 +23,98 @@ jobs:
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        fetch-depth: 0
     
-    - name: Create dummy file
+    - name: Setup Julia
+      uses: julia-actions/setup-julia@v2
+      with:
+        version: '1.11'
+    
+    - name: Install dependencies
       run: |
-        echo "Creating dummy file: ${{ github.event.inputs.filename }}"
-        echo "${{ github.event.inputs.content }}" > ${{ github.event.inputs.filename }}
-        echo "File created with content:"
-        cat ${{ github.event.inputs.filename }}
+        julia --project=. -e 'using Pkg; Pkg.instantiate()'
+    
+    - name: Execute Julia script
+      id: julia_script
+      run: |
+        echo "Executing script: ${{ github.event.inputs.script }}"
+        julia --project=. -e "include(\"scripts/${{ github.event.inputs.script }}\")"
         
-        # Add timestamp and workflow info
-        echo "" >> ${{ github.event.inputs.filename }}
-        echo "Created at: $(date)" >> ${{ github.event.inputs.filename }}
-        echo "Workflow run: ${{ github.run_number }}" >> ${{ github.event.inputs.filename }}
-        echo "Commit SHA: ${{ github.sha }}" >> ${{ github.event.inputs.filename }}
+        # Check if assets directory exists and find generated files
+        if [ -d "assets" ]; then
+          echo "Assets directory found"
+          ls -la assets/
+          
+          # Find the most recently created file in assets directory
+          ASSET_FILE=$(ls -t assets/ | head -n 1)
+          ASSET_PATH="assets/$ASSET_FILE"
+          
+          echo "asset_file=$ASSET_FILE" >> $GITHUB_OUTPUT
+          echo "asset_path=$ASSET_PATH" >> $GITHUB_OUTPUT
+          
+          echo "Generated asset: $ASSET_FILE"
+          echo "Asset path: $ASSET_PATH"
+        else
+          echo "No assets directory found"
+          exit 1
+        fi
+    
+    - name: Verify asset exists
+      run: |
+        if [ ! -f "${{ steps.julia_script.outputs.asset_path }}" ]; then
+          echo "Asset file not found: ${{ steps.julia_script.outputs.asset_path }}"
+          exit 1
+        fi
+        
+        echo "Asset file verified: ${{ steps.julia_script.outputs.asset_path }}"
+        echo "File size: $(du -h "${{ steps.julia_script.outputs.asset_path }}" | cut -f1)"
     
     - name: Upload to artifact_releases
       uses: softprops/action-gh-release@v2
       with:
         tag_name: artifact_releases
         name: artifact_releases
-        files: ${{ github.event.inputs.filename }}
+        files: ${{ steps.julia_script.outputs.asset_path }}
         append_body: true
         make_latest: false
         body: |
-          Uploaded artifact: `${{ github.event.inputs.filename }}`
+          Uploaded artifact: `${{ steps.julia_script.outputs.asset_file }}`
+          - Script executed: `${{ github.event.inputs.script }}`
           - Created at: ${{ github.event.time }}
-          - Workflow run: ${{ github.run_number }}
-          - Commit: ${{ github.sha }}
       env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Check for Artifacts.toml changes
+      id: check_changes
+      run: |
+        if git diff --quiet HEAD -- Artifacts.toml; then
+          echo "No changes to Artifacts.toml"
+          echo "has_changes=false" >> $GITHUB_OUTPUT
+        else
+          echo "Changes detected in Artifacts.toml"
+          echo "has_changes=true" >> $GITHUB_OUTPUT
+          git diff HEAD -- Artifacts.toml
+        fi
+    
+    - name: Create Pull Request
+      if: steps.check_changes.outputs.has_changes == 'true'
+      uses: peter-evans/create-pull-request@v5
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        commit-message: "Update Artifacts.toml after generating ${{ steps.julia_script.outputs.asset_file }}"
+        title: "Update Artifacts.toml - ${{ steps.julia_script.outputs.asset_file }}"
+        body: |
+          This PR updates the Artifacts.toml file after generating and uploading the artifact: `${{ steps.julia_script.outputs.asset_file }}`
+          
+          **Details:**
+          - Script executed: `${{ github.event.inputs.script }}`
+          - Artifact uploaded: `${{ steps.julia_script.outputs.asset_file }}`
+          - Generated at: ${{ github.event.time }}
+          
+          This PR was automatically created by the artifact generation workflow.
+        branch: update-artifacts-toml-${{ github.run_number }}
+        base: ITU_artifacts
+        delete-branch: true
+        draft: false 

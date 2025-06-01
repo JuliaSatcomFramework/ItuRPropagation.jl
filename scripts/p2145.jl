@@ -1,10 +1,11 @@
 include(joinpath(@__DIR__, "common.jl"))
 
 function create_p2145_annual_artifact()
-    p2145_annual_hash = artifact_hash("p2145_annual", artifact_toml)
+    artifact_name = "p2145_annual"
+    _artifact_hash = Artifacts.artifact_hash(artifact_name, artifact_toml)
 
-    if isnothing(p2145_annual_hash) || !artifact_exists(p2145_annual_hash)
-        p2145_annual_hash = create_artifact() do artifact_folder
+    if isnothing(_artifact_hash) || !Artifacts.artifact_exists(_artifact_hash)
+        _artifact_hash = Artifacts.create_artifact() do artifact_folder
             # This is the URL for direct download of the zip file containing the Part 1 of the ITU-R P.2145-0 recommendation (Annual Data)
             url = "https://www.itu.int/dms_pubrec/itu-r/rec/p/R-REC-P.2145Part01-0-202208-I!!ZIP-E.zip"
 
@@ -66,13 +67,21 @@ function create_p2145_annual_artifact()
                 end
             end
         end
-        bind_artifact!(artifact_toml, "p2145_annual", p2145_annual_hash)
+
     end
 
-    tarball_path = joinpath(assets_dir, "p2145_2022_Part1_annual.tar.gz")
-    tarball_sha = Pkg.Artifacts.archive_artifact(p2145_annual_hash, tarball_path)
-    return p2145_annual_hash
 
+    asset_name = "p2145_2022_Part1_annual.tar.gz"
+    tarball_path = joinpath(assets_dir, asset_name)
+    tarball_sha = if !isfile(tarball_path)
+        @info "Creating the artifact tarball"
+        Artifacts.archive_artifact(_artifact_hash, tarball_path)
+    else
+        sha256sum(tarball_path)
+    end
+    release_url = release_root_url * asset_name
+    @info "Updating the Artifacts.toml file"
+    Artifacts.bind_artifact!(artifact_toml, artifact_name, _artifact_hash; force=true, download_info=[(release_url, tarball_sha)])
 end
 
 create_p2145_annual_artifact()
