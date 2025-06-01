@@ -1,0 +1,48 @@
+name: Upload Artifact to Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      filename:
+        description: 'Name of the dummy file to create'
+        required: false
+        default: 'dummy-artifact.txt'
+      content:
+        description: 'Content for the dummy file'
+        required: false
+        default: 'This is a dummy artifact file created by GitHub Actions'
+
+jobs:
+  create-and-upload:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    
+    - name: Create dummy file
+      run: |
+        echo "Creating dummy file: ${{ github.event.inputs.filename }}"
+        echo "${{ github.event.inputs.content }}" > ${{ github.event.inputs.filename }}
+        echo "File created with content:"
+        cat ${{ github.event.inputs.filename }}
+        
+        # Add timestamp and workflow info
+        echo "" >> ${{ github.event.inputs.filename }}
+        echo "Created at: $(date)" >> ${{ github.event.inputs.filename }}
+        echo "Workflow run: ${{ github.run_number }}" >> ${{ github.event.inputs.filename }}
+        echo "Commit SHA: ${{ github.sha }}" >> ${{ github.event.inputs.filename }}
+    
+    - name: Upload to artifact_releases
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: artifact_releases
+        files: ${{ github.event.inputs.filename }}
+        append_body: true
+        body: |
+          Uploaded artifact: `${{ github.event.inputs.filename }}`
+          - Created at: ${{ github.event.time }}
+          - Workflow run: ${{ github.run_number }}
+          - Commit: ${{ github.sha }}
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 

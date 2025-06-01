@@ -13,4 +13,7 @@ end
 downloads_dir = joinpath(@__DIR__, "..", "downloads")
 isdir(downloads_dir) || mkdir(downloads_dir)
 
+assets_dir = joinpath(@__DIR__, "..", "assets")
+isdir(assets_dir) || mkdir(assets_dir)
+
 artifact_toml = joinpath(@__DIR__, "..", "Artifacts.toml")
