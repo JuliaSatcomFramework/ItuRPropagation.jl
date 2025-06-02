@@ -6,9 +6,8 @@ temperature, surface water vapour density and integrated water vapour content re
 gaseous attenuation and related effects on terrestrial and Earth-space paths.
 =#
 
-using ..ItuRPropagation: ItuRPropagation, LatLon, ItuRVersion, SquareGridInterpolator
+using ..ItuRPropagation: ItuRPropagation, LatLon, ItuRVersion, SquareGridInterpolator, ItuRP1511
 using Artifacts: Artifacts, @artifact_str
-using DelimitedFiles: DelimitedFiles, readdlm
 
 const version = ItuRVersion("ITU-R", "P.2145", 0, "(08/2022)")
 
@@ -44,56 +43,49 @@ struct SingleVariableData{S}
     Z_ground::Matrix{Float64}
     scale_func::ScaleFunction{S}
 end
-function SingleVariableData{S}(Z_ground::Matrix{Float64}) where S
-    size(Z_ground) == datasize || throw(DimensionMismatch("Z_ground must be of size $datasize"))
+function SingleVariableData{S}() where S
+    Z_ground = fill(NaN, datasize)
     ccdf = [fill(NaN, datasize) for _ in filespsannual]
     mean = fill(NaN, datasize)
     scale = fill(NaN, datasize)
     scale_func = ScaleFunction{S}()
-    SingleVariableData{S}(ccdf, mean, scale, Z_ground, scale_func)
+    SingleVariableData{S}(ccdf, mean, scale, Z_ground, scale_func) |> initialize!
 end
-struct AnnualData
-    T::SingleVariableData{:T}
-    RHO::SingleVariableData{:RHO}
-    P::SingleVariableData{:P}
-    V::SingleVariableData{:V}
-end
-function AnnualData()
-    Z_ground = readdlm(joinpath(artifact"p2145_annual","T_Annual", "Z_ground.TXT"), ' ')
-    T = SingleVariableData{:T}(Z_ground)
-    RHO = SingleVariableData{:RHO}(Z_ground)
-    P = SingleVariableData{:P}(Z_ground)
-    V = SingleVariableData{:V}(Z_ground)
-    AnnualData(T, RHO, P, V)
+@kwdef mutable struct AnnualData
+    T::Union{SingleVariableData{:T}, Nothing} = nothing
+    RHO::Union{SingleVariableData{:RHO}, Nothing} = nothing
+    P::Union{SingleVariableData{:P}, Nothing} = nothing
+    V::Union{SingleVariableData{:V}, Nothing} = nothing
 end
 
 const ANNUAL_DATA = AnnualData()
 
-is_initialized(data::Matrix) = data |> first |> !isnan
+# This will return the variable in the ANNUAL_DATA struct, initializing it if it is not already initialized
+getvariable(::Val{S}) where S = @something getproperty(ANNUAL_DATA, S) setproperty!(ANNUAL_DATA, S, SingleVariableData{S}())
 
 function initialize!(nt::SingleVariableData{kind}) where kind
-    is_initialized(nt.mean) && return nothing
     # We make sure that Z_ground is also initialized
-    @info "P2145: Loading data for $kind variable, this may take some time..."
+    @info "P2145: Loading data for $kind variable"
     scalename = if kind === :T
-        "TSCH.TXT"
+        "TSCH.bin"
     elseif kind === :P
-        "PSCH.TXT"
+        "PSCH.bin"
     else 
-        "VSCH.TXT"
+        "VSCH.bin"
     end
     initialize!(nt.scale, kind, scalename)
+    # We initialize the Z_ground
+    initialize!(nt.Z_ground, kind, "Z_ground.bin")
     # We initialize the mean
-    initialize!(nt.mean, kind, "$(kind)_mean.TXT")
+    initialize!(nt.mean, kind, "$(kind)_mean.bin")
     # We initialize the ccdf values
     for (i, suffix) in enumerate(filespsannual)
-        initialize!(nt.ccdf[i], kind, "$(kind)_$(suffix).TXT")
+        initialize!(nt.ccdf[i], kind, "$(kind)_$(suffix).bin")
     end
-    return nothing
+    nt
 end
 
 function initialize!(data::Matrix, kind::Symbol, filename::String)
-    is_initialized(data) && return nothing
     dir = if kind in (:T, :Z_ground)
         joinpath(artifact"p2145_annual", "T_Annual")
     elseif kind === :RHO
@@ -103,11 +95,11 @@ function initialize!(data::Matrix, kind::Symbol, filename::String)
     elseif kind === :P
         joinpath(artifact"p2145_annual", "P_Annual")
     end
-    data .= readdlm(joinpath(dir, filename), ' ')
+    read!(joinpath(dir, filename), data)
     return nothing
 end
 
-# This is a helper function to return indices for faster interpolation inside SquareGridInterpolator
+# This is a helper function to return indices for faster interpolation using square bilinear interpolation
 @inline function itp_inputs(latlon::LatLon)
     R = searchsortedlast(latrange, latlon.lat)
     C = searchsortedlast(lonrange, latlon.lon)
@@ -123,6 +115,7 @@ end
     )
     (; idxs, δr, δc)
 end
+# This is a helper function to return indices on the pre-computed probability values to use for interpolation
 @inline function itp_inputs(p::Real)
     prange = searchsorted(psannual, p)
     pindexbelow = prange.stop
@@ -132,12 +125,10 @@ end
 end
 
 function (nt::SingleVariableData)(latlon::LatLon; alt = 0.0)
-    initialize!(nt)
     (; idxs, δr, δc) = itp_inputs(latlon)
     bilinear_interpolation(nt.mean, nt.scale, nt.Z_ground, nt.scale_func, idxs, δr, δc; alt)
 end
 function (nt::SingleVariableData)(latlon::LatLon, p::Real; alt = 0.0)
-    initialize!(nt)
     (; idxs, δr, δc) = itp_inputs(latlon)
     (; pindexabove, pindexbelow) = itp_inputs(p)
     
@@ -283,8 +274,8 @@ function surfacetemperatureannual(
     end
 end
 
-surfacetemperatureannual2(args...; kwargs...) = ANNUAL_DATA.T(args...; kwargs...)
-surfacewatervapordensityannual2(args...; kwargs...) = ANNUAL_DATA.RHO(args...; kwargs...)
+surfacetemperatureannual2(args...; kwargs...) = getvariable(Val(:T))(args...; kwargs...)
+surfacewatervapordensityannual2(args...; kwargs...) = getvariable(Val(:RHO))(args...; kwargs...)
 
 
 """
