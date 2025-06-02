@@ -90,19 +90,19 @@ end
 
 
 """
-    standardwatervapordensity(Z; kwargs...)
+    standardwatervapourdensity(Z; kwargs...)
 
-Standard water vapor density for geometric heights <= 100 km, based on equations 6-8 of Section 1.2.
+Standard water vapour density for geometric heights <= 100 km, based on equations 6-8 of Section 1.2.
 
 # Arguments
 - `Z::Real`: geometric height (km)
 
 # Keyword arguments
-- `rho_0::Real=7.5`: standard ground level water vapor density (g/m^3). Can also be provided as `ρ₀`.
+- `rho_0::Real=7.5`: standard ground level water vapour density (g/m^3). Can also be provided as `ρ₀`.
 - `T::Real`: Temperature (°K) at given height. Computed with `standardtemperature(Z)` if not provided.
 - `P::Real`: Total barometric pressure (hPa) at given height. Computed with `standardpressure(Z)` if not provided.
 """
-function standardwatervapordensity(
+function standardwatervapourdensity(
         Z::Real; 
         rho_0 = nothing,
         ρ₀ = nothing,

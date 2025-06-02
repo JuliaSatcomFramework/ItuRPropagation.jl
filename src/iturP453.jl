@@ -38,9 +38,9 @@ end
 #region internal functions
 
 """
-    _saturationvaporpressure(t::Real, P::Real, ::Val{EnumWater})
+    _saturationvapourpressure(t::Real, P::Real, ::Val{EnumWater})
 
-Compute the saturation water vapor pressure for water-type hydrometer based on Section 1.
+Compute the saturation water vapour pressure for water-type hydrometer based on Section 1.
 
 # Arguments
 - `T::Real`: temperature in (°C)
@@ -48,10 +48,10 @@ Compute the saturation water vapor pressure for water-type hydrometer based on S
 - `::Val{EnumWater}`: water-type hydrometer
 
 # Return
-- `eₛ::Real`: saturation water vapor pressure (hPa)
+- `eₛ::Real`: saturation water vapour pressure (hPa)
 """
-function _saturationwatervaporpressure(T::Real, P::Real, ::Val{EnumWater})
-    (T < -40 || T > 50) && throw(ArgumentError("T=$T\nT (temperature in deg C) in ItuRP453.saturationvaporpressure must be between -80 and 0."))
+function _saturationwatervapourpressure(T::Real, P::Real, ::Val{EnumWater})
+    (T < -40 || T > 50) && throw(ArgumentError("T=$T\nT (temperature in deg C) in ItuRP453.saturationvapourpressure must be between -80 and 0."))
     EF = 1 + 1e-4 * (7.2 + P * (0.0320 + 5.9e-6 * T * T))
     a, b, c, d = 6.1121, 18.678, 257.14, 234.5
     eₛ = EF * a * exp((b - T / d) * T / (T + c))     # equation 9
@@ -60,9 +60,9 @@ end
 
 
 """
-    _saturationvaporpressure(t::Real, P::Real, ::Val{EnumIce})
+    _saturationvapourpressure(t::Real, P::Real, ::Val{EnumIce})
 
-Compute the saturation water vapor pressure for ice-type hydrometer based on Section 1.
+Compute the saturation water vapour pressure for ice-type hydrometer based on Section 1.
 
 # Arguments
 - `T::Real`: temperature (°C)
@@ -70,10 +70,10 @@ Compute the saturation water vapor pressure for ice-type hydrometer based on Sec
 - `::Val{EnumIce}`: ice-type hydrometer
 
 # Return
-- `eₛ::Real`: saturation water vapor pressure (hPa)
+- `eₛ::Real`: saturation water vapour pressure (hPa)
 """
-function _saturationwatervaporpressure(T::Real, P::Real, ::Val{EnumIce})
-    (T < -80 || T > 0) && throw(ArgumentError("T=$T\nT (temperature in deg C) in ItuRP453.saturationvaporpressure must be between -80 and 0."))
+function _saturationwatervapourpressure(T::Real, P::Real, ::Val{EnumIce})
+    (T < -80 || T > 0) && throw(ArgumentError("T=$T\nT (temperature in deg C) in ItuRP453.saturationvapourpressure must be between -80 and 0."))
     EF = 1 + 1e-4 * (2.2 + P * (0.0383 + 6.4e-6 * T * T))
     a, b, c, d = 6.1115, 23.036, 279.82, 333.7
     eₛ = EF * a * exp((b - T / d) * T / (T + c))     # equation 9
@@ -90,7 +90,7 @@ Compute the atmospheric radio refractive index \$\\sqrt[n]{1 + x + x^2 + \\ldots
 # Arguments
 - `T::Real`: absolute temperature (°K)
 - `Pd::Real`: dry atmospheric pressure (hPa)
-- `eₛ::Real`: saturation water vapor pressure (hPa)
+- `eₛ::Real`: saturation water vapour pressure (hPa)
 
 # Return
 - `n::Real`: atmospheric radio refractive index
@@ -134,7 +134,7 @@ Compute the wet term of the radio refractivity based on Section 1.
 
 # Arguments
 - `T::Real`: absolute temperature (°K)
-- `eₛ:Real`: saturation water vapor pressure (hPa)
+- `eₛ:Real`: saturation water vapour pressure (hPa)
 
 # Return
 - `Nwet::Real`: wet term of the radio refractivity
@@ -149,9 +149,9 @@ end
 
 
 """
-    vaporpressure(T::Real, P::Real, H::Real, hydrometer::IturEnum)
+    vapourpressure(T::Real, P::Real, H::Real, hydrometer::IturEnum)
 
-Computes the vapor pressure dependent on hydrometer type based on Section 1.
+Computes the vapour pressure dependent on hydrometer type based on Section 1.
 
 # Arguments
 - `T::Real`: temperature in (°C)
@@ -160,20 +160,20 @@ Computes the vapor pressure dependent on hydrometer type based on Section 1.
 - `hydrometer::IturEnum"`: type of hydrometer, either water or ice
 
 # Return
-- `e::Real`: water vapor pressure (hPa)
+- `e::Real`: water vapour pressure (hPa)
 """
-function vaporpressure(
+function vapourpressure(
     T::Real, 
     P::Real, 
     H::Real,
     hydrometer::IturEnum
 )
     if hydrometer == EnumIce
-        eₛ = _saturationwatervaporpressure(T, P, EnumIce)
+        eₛ = _saturationwatervapourpressure(T, P, EnumIce)
     elseif hydrometer == EnumWater
-        eₛ = _saturationwatervaporpressure(T, P, EnumWater)
+        eₛ = _saturationwatervapourpressure(T, P, EnumWater)
     else
-        throw(ArgumentError("Invalid hydrometer value in ItuRP453.vaporpressure."))
+        throw(ArgumentError("Invalid hydrometer value in ItuRP453.vapourpressure."))
     end
     e = H * eₛ / 100.0     # equation 8
     return e

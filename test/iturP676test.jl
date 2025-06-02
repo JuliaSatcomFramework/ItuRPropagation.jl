@@ -379,7 +379,7 @@ function testgamma()
     end
     println("OXYGEN MAX ERROR: $(maximum(errors)) dB/km\n")
 
-    gammawatervaporitutestdata = [
+    gammawatervapouritutestdata = [
         TestData((12.0, 7.50, 1013.2500000000, 288.15), 0.009535388),
         TestData((20.0, 7.50, 1013.2500000000, 288.15), 0.097047305),
         TestData((60.0, 7.50, 1013.2500000000, 288.15), 0.154841841),
@@ -739,15 +739,15 @@ function testgamma()
 
     allowableerror = 1e-6
     errors = []
-    @testset "iturP676 (Itu-R P.676-13) gamma water vapor with allowable error of $allowableerror dB/km: ITU test data" begin
-        for testdata in gammawatervaporitutestdata
+    @testset "iturP676 (Itu-R P.676-13) gamma water vapour with allowable error of $allowableerror dB/km: ITU test data" begin
+        for testdata in gammawatervapouritutestdata
             value = ItuRP676._gammawater(testdata.testinput[1], testdata.testinput[4], testdata.testinput[3], testdata.testinput[2])
             error = abs(value - testdata.answer)
             @test error < allowableerror
             push!(errors, error)
         end
     end
-    println("WATER VAPOR MAX: $(maximum(errors))\n")
+    println("WATER vapour MAX: $(maximum(errors))\n")
 
     gammatestdata = [
         TestData((1.0, 7.5, 1013.25, 288.15), 0.005439563),
