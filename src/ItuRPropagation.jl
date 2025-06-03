@@ -12,6 +12,7 @@ export linkparameters
 export ItuRP840
 
 export ItuRP453
+export ItuRP1144
 export ItuRP1511
 export ItuRP2145
 export ItuRP835
@@ -28,6 +29,8 @@ export ItuRP618
 #region include
 
 include("iturcommon.jl")
+
+include("iturP1144.jl") # Interpolations
 
 include("iturP840.jl")
 

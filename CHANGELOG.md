@@ -11,6 +11,6 @@ This file contains the changelog for the ItuRPropagation package. It follows the
 - The `ItuRP2145` module has been refactored to use an independent artifact and for a more modular structure.
 
 ### Added
-- The `ItuRP2145` now supports computation of average annual values, as opposed to only the CCDF values supported in previous versions
+- The `ItuRP2145` module now supports computation of average annual values, as opposed to only the CCDF values supported in previous versions
   - The module now also supports computing the total barometric pressure and the integrated water vapour content, available via the `surfacepressureannual` and `surfacewatervapourcontentannual` functions, respectively.
 - The function of the `ItuRP2145` module are now tested against the validation examples excel provided by ITU-R.

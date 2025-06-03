@@ -6,7 +6,7 @@ temperature, surface water vapour density and integrated water vapour content re
 gaseous attenuation and related effects on terrestrial and Earth-space paths.
 =#
 
-using ..ItuRPropagation: ItuRPropagation, LatLon, ItuRVersion, SquareGridInterpolator, ItuRP1511
+using ..ItuRPropagation: ItuRPropagation, LatLon, ItuRVersion, SquareGridInterpolator, ItuRP1511, ItuRP1144
 using Artifacts: Artifacts, @artifact_str
 
 export surfacetemperatureannual, surfacewatervapourdensityannual, surfacepressureannual, surfacewatervapourcontentannual
@@ -105,21 +105,8 @@ function initialize!(data::Matrix, kind::Symbol, filename::String)
 end
 
 # This is a helper function to return indices for faster interpolation using square bilinear interpolation
-@inline function itp_inputs(latlon::LatLon)
-    R = searchsortedlast(latrange, latlon.lat)
-    C = searchsortedlast(lonrange, latlon.lon)
-    R₊₁ = min(R + 1, length(latrange))
-    C₊₁ = min(C + 1, length(lonrange))
-    δr = (latlon.lat - latrange[R]) / δlat
-    δc = (latlon.lon - lonrange[C]) / δlon
-    idxs = (
-        CartesianIndex(R, C),
-        CartesianIndex(R₊₁, C),
-        CartesianIndex(R, C₊₁),
-        CartesianIndex(R₊₁, C₊₁),
-    )
-    (; idxs, δr, δc)
-end
+@inline itp_inputs(latlon::LatLon) = ItuRP1144.bilinear_itp_inputs(latlon, latrange, lonrange)
+
 # This is a helper function to return indices on the pre-computed probability values to use for interpolation
 @inline function itp_inputs(p::Real)
     prange = searchsorted(psannual, p)
@@ -146,14 +133,6 @@ function (nt::SingleVariableData)(latlon::LatLon, p::Real; alt = 0.0)
     return T
 end
 
-# This will perform bilinear interpolation of the points stored in `data` assuming the 4 neighboring indices are stored in `idxs` and expecting as input δr = r - R and δc = c - C, where r, R, c, C are the variables used in ITU-R P.1144-12
-function bilinear_interpolation(data::Matrix, idxs::NTuple{4, CartesianIndex}, δr::Real, δc::Real)
-    vals = ntuple(4) do i
-        data[idxs[i]]
-    end
-    bilinear_interpolation(vals, δr, δc)
-end
-
 # This will compute first altitude-based scaling using function `f` (Following ITU-R P.2145 guidelines) to each of the 4 neighboring points and then perform bilinear interpolation as per ITU-R P.1144-12
 function bilinear_interpolation(data::Matrix, scale::Matrix, Z::Matrix, f::F, idxs::NTuple{4, CartesianIndex}, δr::Real, δc::Real; alt = 0.0) where F
     vals = ntuple(4) do i
@@ -163,14 +142,7 @@ function bilinear_interpolation(data::Matrix, scale::Matrix, Z::Matrix, f::F, id
         scaleᵢ = scale[idx]
         f(Xᵢ′, scaleᵢ, altᵢ; alt)
     end
-    bilinear_interpolation(vals, δr, δc)
-end
-
-function bilinear_interpolation(vals::NTuple{4, Real}, δr::Real, δc::Real)
-    vals[1] * (1 - δr) * (1 - δc) + # R,C
-    vals[2] * δr * (1 - δc) + # R+1,C
-    vals[3] * (1 - δr) * δc + # R,C+1
-    vals[4] * δr * δc # R+1,C+1
+    return ItuRP1144.bilinear_interpolation(vals, δr, δc)
 end
 
 #endregion initialization
