@@ -11,3 +11,10 @@ git-tree-sha1 = "6aa7e553e00304fd01f89bb7a9278d1a2b4905c2"
     [[p2145_annual.download]]
     sha256 = "07420e6db86a41c3a8e7c6b1e89a0bb7715003d348f9b401aa68a4dd0dcb9d99"
     url = "https://github.com/JuliaSatcomFramework/ItuRPropagation.jl/releases/download/artifact_releases/p2145_2022_Part1_annual.tar.gz"
+
+[p676]
+git-tree-sha1 = "a21d87acc281d70dc82ff050ad23a39e60af962b"
+
+    [[p676.download]]
+    sha256 = "b8e9de886d893deb902d6bd4f137d18bc74cadaa1587af61a573b0947d5ff85d"
+    url = "https://github.com/JuliaSatcomFramework/ItuRPropagation.jl/releases/download/artifact_releases/p676_data.tar.gz"
