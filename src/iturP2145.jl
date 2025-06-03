@@ -6,214 +6,258 @@ temperature, surface water vapour density and integrated water vapour content re
 gaseous attenuation and related effects on terrestrial and Earth-space paths.
 =#
 
-using ..ItuRPropagation
-using Artifacts
+using ..ItuRPropagation: ItuRPropagation, LatLon, ItuRVersion, SquareGridInterpolator, ItuRP1511, ItuRP1144
+using Artifacts: Artifacts, @artifact_str
+
+export surfacetemperatureannual, surfacewatervapourdensityannual, surfacepressureannual, surfacewatervapourcontentannual
 
 const version = ItuRVersion("ITU-R", "P.2145", 0, "(08/2022)")
 
 #region initialization
 
-const latsize = 721 + 1 # number of latitude points (-90, 90, 0.25) plus one extra row for interpolation
-const lonsize = 1441 + 1 # number of longitude points (-180, 180, 0.25) plus one extra column for interpolation
+const δlat = 0.25
+const δlon = 0.25
+const latrange = range(-90, 90, step=δlat)
+const lonrange = range(-180, 180, step=δlon)
+const datasize = (length(latrange), length(lonrange))
 
 # exceedance probability, section 1 of ITU-R P.836-6
 const psannual = [0.01, 0.02, 0.03, 0.05, 0.1, 0.2, 0.3, 0.5, 1, 2, 3, 5, 10, 20, 30, 50, 60, 70, 80, 90, 95, 99]
-const npsannual = length(psannual)
 
 # exceedance probability values for reading files
 const filespsannual = ["001", "002", "003", "005", "01", "02", "03", "05", "1", "2", "3", "5", "10", "20", "30", "50", "60", "70", "80", "90", "95", "99"]
 
-const latvalues = [(-90.0 + (i - 1) * 0.25) for i in 1:latsize]
-const lonvalues = [(-180.0 + (j - 1) * 0.25) for j in 1:lonsize]
+# This is used as callable struct to define the altitude-dependent scaling function for the various maps part of Recommendation ITU-R P.2145
+struct ScaleFunction{S} end
+(::ScaleFunction{:T})(Xᵢ′, scaleᵢ, altᵢ; alt) = Xᵢ′ + scaleᵢ * (alt - altᵢ) # This is the scaling function for temperature
+(::ScaleFunction)(Xᵢ′, scaleᵢ, altᵢ; alt) = Xᵢ′ * exp(-(alt - altᵢ) / scaleᵢ) # This is the scaling function for P, V and RHO
 
-const surfacetemperatureannualdata = zeros(Float64, (npsannual, latsize, lonsize))
-const surfacerhodata = zeros(Float64, (npsannual, latsize, lonsize))
-const scaleheightrhodata = zeros(Float64, (latsize, lonsize))
-const surfaceheightdata = zeros(Float64, (latsize, lonsize))
+struct SingleVariableData{S}
+    ccdf::Vector{Matrix{Float64}}
+    mean::Matrix{Float64}
+    scale::Matrix{Float64}
+    Z_ground::Matrix{Float64}
+    scale_func::ScaleFunction{S}
+end
+function SingleVariableData{S}() where S
+    Z_ground = fill(NaN, datasize)
+    ccdf = [fill(NaN, datasize) for _ in filespsannual]
+    mean = fill(NaN, datasize)
+    scale = fill(NaN, datasize)
+    scale_func = ScaleFunction{S}()
+    # We create empty data and initialize it with the data in the artifact
+    SingleVariableData{S}(ccdf, mean, scale, Z_ground, scale_func) |> initialize!
+end
 
-const initialized = Ref{Bool}(false)
+"""
+    struct AnnualData
 
-function initialize()
-    initialized[] && return nothing
-    tempdata = zeros(Float64, (latsize, lonsize))
-    for nps in range(1, npsannual)
-        read!(
-            joinpath(artifact"input-maps", "surfacetemperatureannual_$(string(latsize))_x_$(string(lonsize))_x_$(filespsannual[nps]).bin"),
-            tempdata
-        )
-        @views surfacetemperatureannualdata[nps, :, :] = tempdata
-        read!(
-            joinpath(artifact"input-maps", "surfacewatervapordensityannual_$(string(latsize))_x_$(string(lonsize))_x_$(filespsannual[nps]).bin"),
-            tempdata
-        )
-        @views surfacerhodata[nps, :, :] = tempdata
+Structure storing the raw Annual Data for the various variables of ITU-R P.2145
+
+The instance used by the P2145 module is stored in the `ANNUAL_DATA` constant.
+"""
+@kwdef mutable struct AnnualData
+    T::Union{SingleVariableData{:T}, Nothing} = nothing
+    RHO::Union{SingleVariableData{:RHO}, Nothing} = nothing
+    P::Union{SingleVariableData{:P}, Nothing} = nothing
+    V::Union{SingleVariableData{:V}, Nothing} = nothing
+end
+
+const ANNUAL_DATA = AnnualData()
+
+# This will return the variable in the ANNUAL_DATA struct, initializing it if it is not already initialized
+getvariable(::Val{S}) where S = @something getproperty(ANNUAL_DATA, S) setproperty!(ANNUAL_DATA, S, SingleVariableData{S}())
+
+function initialize!(nt::SingleVariableData{kind}) where kind
+    # We make sure that Z_ground is also initialized
+    @info "P2145: Loading data for $kind variable"
+    scalename = if kind === :T
+        "TSCH.bin"
+    elseif kind === :P
+        "PSCH.bin"
+    else 
+        "VSCH.bin"
     end
-    read!(
-        joinpath(artifact"input-maps", "scaleheightwatervapordensityannual_$(string(latsize))_x_$(string(lonsize)).bin"),
-        scaleheightrhodata
-    )
+    initialize!(nt.scale, kind, scalename)
+    # We initialize the Z_ground
+    initialize!(nt.Z_ground, kind, "Z_ground.bin")
+    # We initialize the mean
+    initialize!(nt.mean, kind, "$(kind)_mean.bin")
+    # We initialize the ccdf values
+    for (i, suffix) in enumerate(filespsannual)
+        initialize!(nt.ccdf[i], kind, "$(kind)_$(suffix).bin")
+    end
+    nt
+end
 
-    read!(
-        joinpath(artifact"input-maps", "surfaceheightannual_$(string(latsize))_x_$(string(lonsize)).bin"),
-        surfaceheightdata
-    )
-    initialized[] = true
+function initialize!(data::Matrix, kind::Symbol, filename::String)
+    dir = if kind in (:T, :Z_ground)
+        joinpath(artifact"p2145_annual", "T_Annual")
+    elseif kind === :RHO
+        joinpath(artifact"p2145_annual", "RHO_Annual")
+    elseif kind === :V
+        joinpath(artifact"p2145_annual", "V_Annual")
+    elseif kind === :P
+        joinpath(artifact"p2145_annual", "P_Annual")
+    end
+    read!(joinpath(dir, filename), data)
     return nothing
 end
 
+# This is a helper function to return indices for faster interpolation using square bilinear interpolation
+@inline itp_inputs(latlon::LatLon) = ItuRP1144.bilinear_itp_inputs(latlon, latrange, lonrange)
 
+# This is a helper function to return indices on the pre-computed probability values to use for interpolation
+@inline function itp_inputs(p::Real)
+    prange = searchsorted(psannual, p)
+    pindexbelow = prange.stop
+    pindexabove = prange.start
+
+    (; pindexabove, pindexbelow)
+end
+
+function (nt::SingleVariableData)(latlon::LatLon; alt = 0.0)
+    (; idxs, δr, δc) = itp_inputs(latlon)
+    bilinear_interpolation(nt.mean, nt.scale, nt.Z_ground, nt.scale_func, idxs, δr, δc; alt)
+end
+function (nt::SingleVariableData)(latlon::LatLon, p::Real; alt = 0.0)
+    (; idxs, δr, δc) = itp_inputs(latlon)
+    (; pindexabove, pindexbelow) = itp_inputs(p)
+    
+    Tabove = bilinear_interpolation(nt.ccdf[pindexabove], nt.scale, nt.Z_ground, nt.scale_func, idxs, δr, δc; alt)
+    pindexabove == pindexbelow && return Tabove
+    Tbelow = bilinear_interpolation(nt.ccdf[pindexbelow], nt.scale, nt.Z_ground, nt.scale_func, idxs, δr, δc; alt)
+    psabove = psannual[pindexabove]
+    psbelow = psannual[pindexbelow]
+    T = (Tabove - Tbelow) / log(psabove/psbelow) * log(p/psbelow) + Tbelow
+    return T
+end
+
+# This will compute first altitude-based scaling using function `f` (Following ITU-R P.2145 guidelines) to each of the 4 neighboring points and then perform bilinear interpolation as per ITU-R P.1144-12
+function bilinear_interpolation(data::Matrix, scale::Matrix, Z::Matrix, f::F, idxs::NTuple{4, CartesianIndex}, δr::Real, δc::Real; alt = 0.0) where F
+    vals = ntuple(4) do i
+        idx = idxs[i]
+        Xᵢ′ = data[idx]
+        altᵢ = Z[idx]
+        scaleᵢ = scale[idx]
+        f(Xᵢ′, scaleᵢ, altᵢ; alt)
+    end
+    return ItuRP1144.bilinear_interpolation(vals, δr, δc)
+end
 
 #endregion initialization
 
 """
-    surfacetemperatureannual(latlon::LatLon, p::Real, hs::Union{Missing, Real} = missing)
+    T̄ₛ = surfacetemperatureannual(latlon::LatLon; alt = nothing)
+    Tₛ(p) = surfacetemperatureannual(latlon::LatLon, p::Real; alt = nothing)
 
-Computes annual surface temperature for a given exceedance probability and altitude based on Section 2.1.
+Computes annual surface temperature based Section 2 of the P2145-0
+Recommendation and assuming the surface to be loacted at `alt` km above sea
+level.
 
-# Arguments
-- `latlon::LatLon`: latitude and longitude (degrees)
-- `p::Real`: exceedance probability (%)
-- `hs::Union{Missing, Real}`: altitude (m), defaults to missing
-
-# Return
-- `T::Real`: annual surface temperature (°K)
-"""
-function surfacetemperatureannual(
-    latlon::LatLon,
-    p::Real,
-)
-    initialize()
-    prange = searchsorted(psannual, p)
-    pindexbelow = prange.stop
-    pindexabove = prange.start
-    pexact = pindexbelow == pindexabove ? true : false
-
-    latrange = searchsorted(latvalues, latlon.lat)
-    lonrange = searchsorted(lonvalues, latlon.lon)
-    R = latrange.stop
-    C = lonrange.stop
-
-    δg = 0.25
-    r = ((90.0 + latlon.lat) / δg) + 1
-    c = ((180.0 + latlon.lon) / δg) + 1
-
-    T00a = surfacetemperatureannualdata[pindexabove, R, C]
-    T01a = surfacetemperatureannualdata[pindexabove, R, C+1]
-    T10a = surfacetemperatureannualdata[pindexabove, R+1, C]
-    T11a = surfacetemperatureannualdata[pindexabove, R+1, C+1]
-
-    T00b = surfacetemperatureannualdata[pindexbelow, R, C]
-    T01b = surfacetemperatureannualdata[pindexbelow, R, C+1]
-    T10b = surfacetemperatureannualdata[pindexbelow, R+1, C]
-    T11b = surfacetemperatureannualdata[pindexbelow, R+1, C+1]
-
-    Tabove = (
-        T00a * ((R + 1 - r) * (C + 1 - c)) +
-        T10a * ((r - R) * (C + 1 - c)) +
-        T01a * ((R + 1 - r) * (c - C)) +
-        T11a * ((r - R) * (c - C))
-    )
-
-    if pexact == true
-        return Tabove
-    else
-        Tbelow = (
-            T00b * ((R + 1 - r) * (C + 1 - c)) +
-            T10b * ((r - R) * (C + 1 - c)) +
-            T01b * ((R + 1 - r) * (c - C)) +
-            T11b * ((r - R) * (c - C))
-        )
-        pslogabove = log(psannual[pindexabove])
-        pslogbelow = log(psannual[pindexbelow])
-        T = (Tabove - Tbelow) / (pslogabove - pslogbelow) * (log(p) - pslogbelow) + Tbelow
-        return T
-    end
-end
-
-
-"""
-    surfacewatervapordensityannual(latlon::LatLon, p::Real, hs::Union{Missing, Real} = missing)
-
-Computes annual surface water vapor density for a given exceedance probability and altitude based on Section 2.1.
+If the function is called with the `LatLon` target position as sole positional
+argument, the function will return the **mean** surface temperature at the
+target location following the procedure described in Section 2.2 of the P2145-0
+Recommendation.
+If the optional second argument `p` is provided, this is interpreted as the
+target exceedance probability and the function will follow the procedure
+described in Section 2.1 of the P2145-0 Recommendation.
 
 # Arguments
 - `latlon::LatLon`: latitude and longitude (degrees)
 - `p::Real`: exceedance probability (%)
-- `hs::Union{Missing, Real}`: altitude (m), defaults to missing
 
-# Return
-- `ρ::Real`: annual surface water vapor density (g/m^3)
+# Keyword Arguments
+- `alt::Union{Nothing, Real}`: altitude (km). If providedas `nothing` (default) this will be computed based on the location and following Recommendation P1511-3
+
+# Returns
+- `T̄ₛ::Float64` or `Tₛ(p)::Float64`: computed annual surface temperature (°K)
 """
-function surfacewatervapordensityannual(
-    latlon::LatLon,
-    p::Real,
-    hs::Union{Missing,Real}=missing
-)
-    initialize()
-    prange = searchsorted(psannual, p)
-    pindexbelow = prange.stop
-    pindexabove = prange.start
-    pexact = pindexbelow == pindexabove ? true : false
+surfacetemperatureannual(args...; kwargs...) = getvariable(Val(:T))(args...; kwargs...)
 
-    latrange = searchsorted(latvalues, latlon.lat)
-    lonrange = searchsorted(lonvalues, latlon.lon)
-    R = latrange.stop
-    C = lonrange.stop
+"""
+    ρ̄ₛ = surfacewatervapourdensityannual(latlon::LatLon; alt = nothing)
+    ρₛ(p) = surfacewatervapourdensityannual(latlon::LatLon, p::Real; alt = nothing)
 
-    δg = 0.25
-    r = ((90.0 + latlon.lat) / δg) + 1
-    c = ((180.0 + latlon.lon) / δg) + 1
+Computes annual surface water vapour density based Section 2 of the P2145-0
+Recommendation and assuming the surface to be loacted at `alt` km above sea
+level.
 
-    if hs === missing
-        hs = ItuRP1511.topographicheight(latlon)
-    end
+If the function is called with the `LatLon` target position as sole positional
+argument, the function will return the **mean** surface water vapour density at the
+target location following the procedure described in Section 2.2 of the P2145-0
+Recommendation.
+If the optional second argument `p` is provided, this is interpreted as the
+target exceedance probability and the function will follow the procedure
+described in Section 2.1 of the P2145-0 Recommendation.
 
-    h00 = surfaceheightdata[R, C]
-    h01 = surfaceheightdata[R, C + 1]
-    h10 = surfaceheightdata[R + 1, C]
-    h11 = surfaceheightdata[R + 1, C + 1]
+# Arguments
+- `latlon::LatLon`: latitude and longitude (degrees)
+- `p::Real`: exceedance probability (%)
 
-    ρ′00a = surfacerhodata[pindexabove, R, C]
-    ρ′01a = surfacerhodata[pindexabove, R, C+1]
-    ρ′10a = surfacerhodata[pindexabove, R+1, C]
-    ρ′11a = surfacerhodata[pindexabove, R+1, C+1]
+# Keyword Arguments
+- `alt::Union{Nothing, Real}`: altitude (km). If providedas `nothing` (default) this will be computed based on the location and following Recommendation P1511-3
 
-    ρ′00b = surfacerhodata[pindexbelow, R, C]
-    ρ′01b = surfacerhodata[pindexbelow, R, C+1]
-    ρ′10b = surfacerhodata[pindexbelow, R+1, C]
-    ρ′11b = surfacerhodata[pindexbelow, R+1, C+1]
+# Returns
+- `ρ̄ₛ::Float64` or `ρₛ(p)::Float64`: computed annual surface water vapour density (g/m^3)
+"""
+surfacewatervapourdensityannual(args...; kwargs...) = getvariable(Val(:RHO))(args...; kwargs...)
 
-    ρ00a = ρ′00a * exp((h00 - hs) / scaleheightrhodata[R, C])
-    ρ01a = ρ′01a * exp((h01 - hs) / scaleheightrhodata[R, C+1])
-    ρ10a = ρ′10a * exp((h10 - hs) / scaleheightrhodata[R+1, C])
-    ρ11a = ρ′11a * exp((h11 - hs) / scaleheightrhodata[R+1, C+1])
+"""
+    P̄ₛ = surfacepressureannual(latlon::LatLon; alt = nothing)
+    Pₛ(p) = surfacepressureannual(latlon::LatLon, p::Real; alt = nothing)
 
-    ρ00b = ρ′00b * exp((h00 - hs) / scaleheightrhodata[R, C])
-    ρ01b = ρ′01b * exp((h01 - hs) / scaleheightrhodata[R, C+1])
-    ρ10b = ρ′10b * exp((h10 - hs) / scaleheightrhodata[R+1, C])
-    ρ11b = ρ′11b * exp((h11 - hs) / scaleheightrhodata[R+1, C+1])
+Computes annual surface total barometric pressure based Section 2 of the P2145-0
+Recommendation and assuming the surface to be loacted at `alt` km above sea
+level.  
 
-    ρabove = (
-        ρ00a * ((R + 1 - r) * (C + 1 - c)) +
-        ρ10a * ((r - R) * (C + 1 - c)) +
-        ρ01a * ((R + 1 - r) * (c - C)) +
-        ρ11a * ((r - R) * (c - C))
-    )
+If the function is called with the `LatLon` target position as sole positional
+argument, the function will return the **mean** total barometric pressure at the
+target location following the procedure described in Section 2.2 of the P2145-0
+Recommendation.
+If the optional second argument `p` is provided, this is interpreted as the
+target exceedance probability and the function will follow the procedure
+described in Section 2.1 of the P2145-0 Recommendation. 
 
-    if pexact == true
-        return ρabove
-    else
-        ρbelow = (
-            ρ00b * ((R + 1 - r) * (C + 1 - c)) +
-            ρ10b * ((r - R) * (C + 1 - c)) +
-            ρ01b * ((R + 1 - r) * (c - C)) +
-            ρ11b * ((r - R) * (c - C))
-        )
-        pslogabove = log(psannual[pindexabove])
-        pslogbelow = log(psannual[pindexbelow])
-        ρ = (ρabove - ρbelow) / (pslogabove - pslogbelow) * (log(p) - pslogbelow) + ρbelow
-        return ρ
-    end
-end
+# Arguments
+- `latlon::LatLon`: latitude and longitude (degrees)
+- `p::Real`: exceedance probability (%)
+
+# Keyword Arguments
+- `alt::Union{Nothing, Real}`: altitude (km). If providedas `nothing` (default) this will be computed based on the location and following Recommendation P1511-3    
+
+# Returns
+- `P̄ₛ::Float64` or `Pₛ(p)::Float64`: computed annual total barometric pressure (hPa)
+"""
+surfacepressureannual(args...; kwargs...) = getvariable(Val(:P))(args...; kwargs...)
+
+
+"""
+    V̄ₛ = surfacewatervapourcontentannual(latlon::LatLon; alt = nothing)
+    Vₛ(p) = surfacewatervapourcontentannual(latlon::LatLon, p::Real; alt = nothing)
+
+Computes annual surface integrated water vapour content based Section 2 of the P2145-0
+Recommendation and assuming the surface to be loacted at `alt` km above sea
+level.
+
+If the function is called with the `LatLon` target position as sole positional
+argument, the function will return the **mean** integrated water vapour content at the
+target location following the procedure described in Section 2.2 of the P2145-0
+Recommendation.
+If the optional second argument `p` is provided, this is interpreted as the 
+target exceedance probability and the function will follow the procedure
+described in Section 2.1 of the P2145-0 Recommendation.
+
+# Arguments
+- `latlon::LatLon`: latitude and longitude (degrees)
+- `p::Real`: exceedance probability (%)      
+
+# Keyword Arguments
+- `alt::Union{Nothing, Real}`: altitude (km). If providedas `nothing` (default) this will be computed based on the location and following Recommendation P1511-3
+
+# Returns
+- `V̄ₛ::Float64` or `Vₛ(p)::Float64`: computed annual integrated water vapour content (g/m^2)
+"""
+surfacewatervapourcontentannual(args...; kwargs...) = getvariable(Val(:V))(args...; kwargs...)
 
 end # module ItuRP2145

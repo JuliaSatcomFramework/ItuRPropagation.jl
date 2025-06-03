@@ -8,5 +8,5 @@ version = "0.3.0-DEV"
 Artifacts = "56f22d72-fd6d-98f1-02f0-08ddc0907c33"
 
 [compat]
-julia = "1.10"
 Artifacts = "1"
+julia = "1.10"
