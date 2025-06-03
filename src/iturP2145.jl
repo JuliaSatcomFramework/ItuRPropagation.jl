@@ -116,11 +116,13 @@ end
     (; pindexabove, pindexbelow)
 end
 
-function (nt::SingleVariableData)(latlon::LatLon; alt = 0.0)
+function (nt::SingleVariableData)(latlon::LatLon; alt = nothing)
+    alt = @something(alt, ItuRP1511.topographicheight(latlon))
     (; idxs, δr, δc) = itp_inputs(latlon)
     bilinear_interpolation(nt.mean, nt.scale, nt.Z_ground, nt.scale_func, idxs, δr, δc; alt)
 end
-function (nt::SingleVariableData)(latlon::LatLon, p::Real; alt = 0.0)
+function (nt::SingleVariableData)(latlon::LatLon, p::Real; alt = nothing)
+    alt = @something(alt, ItuRP1511.topographicheight(latlon))
     (; idxs, δr, δc) = itp_inputs(latlon)
     (; pindexabove, pindexbelow) = itp_inputs(p)
     
@@ -152,7 +154,7 @@ end
     Tₛ(p) = surfacetemperatureannual(latlon::LatLon, p::Real; alt = nothing)
 
 Computes annual surface temperature based Section 2 of the P2145-0
-Recommendation and assuming the surface to be loacted at `alt` km above sea
+Recommendation and assuming the surface to be located at `alt` km above sea
 level.
 
 If the function is called with the `LatLon` target position as sole positional
@@ -168,7 +170,7 @@ described in Section 2.1 of the P2145-0 Recommendation.
 - `p::Real`: exceedance probability (%)
 
 # Keyword Arguments
-- `alt::Union{Nothing, Real}`: altitude (km). If providedas `nothing` (default) this will be computed based on the location and following Recommendation P1511-3
+- `alt::Union{Nothing, Real}`: altitude (km). If provided as `nothing` (default) this will be computed based on the location and following Recommendation P1511-3
 
 # Returns
 - `T̄ₛ::Float64` or `Tₛ(p)::Float64`: computed annual surface temperature (°K)
@@ -180,7 +182,7 @@ surfacetemperatureannual(args...; kwargs...) = getvariable(Val(:T))(args...; kwa
     ρₛ(p) = surfacewatervapourdensityannual(latlon::LatLon, p::Real; alt = nothing)
 
 Computes annual surface water vapour density based Section 2 of the P2145-0
-Recommendation and assuming the surface to be loacted at `alt` km above sea
+Recommendation and assuming the surface to be located at `alt` km above sea
 level.
 
 If the function is called with the `LatLon` target position as sole positional
@@ -196,7 +198,7 @@ described in Section 2.1 of the P2145-0 Recommendation.
 - `p::Real`: exceedance probability (%)
 
 # Keyword Arguments
-- `alt::Union{Nothing, Real}`: altitude (km). If providedas `nothing` (default) this will be computed based on the location and following Recommendation P1511-3
+- `alt::Union{Nothing, Real}`: altitude (km). If provided as `nothing` (default) this will be computed based on the location and following Recommendation P1511-3
 
 # Returns
 - `ρ̄ₛ::Float64` or `ρₛ(p)::Float64`: computed annual surface water vapour density (g/m^3)
@@ -208,7 +210,7 @@ surfacewatervapourdensityannual(args...; kwargs...) = getvariable(Val(:RHO))(arg
     Pₛ(p) = surfacepressureannual(latlon::LatLon, p::Real; alt = nothing)
 
 Computes annual surface total barometric pressure based Section 2 of the P2145-0
-Recommendation and assuming the surface to be loacted at `alt` km above sea
+Recommendation and assuming the surface to be located at `alt` km above sea
 level.  
 
 If the function is called with the `LatLon` target position as sole positional
@@ -224,7 +226,7 @@ described in Section 2.1 of the P2145-0 Recommendation.
 - `p::Real`: exceedance probability (%)
 
 # Keyword Arguments
-- `alt::Union{Nothing, Real}`: altitude (km). If providedas `nothing` (default) this will be computed based on the location and following Recommendation P1511-3    
+- `alt::Union{Nothing, Real}`: altitude (km). If provided as `nothing` (default) this will be computed based on the location and following Recommendation P1511-3    
 
 # Returns
 - `P̄ₛ::Float64` or `Pₛ(p)::Float64`: computed annual total barometric pressure (hPa)
@@ -237,7 +239,7 @@ surfacepressureannual(args...; kwargs...) = getvariable(Val(:P))(args...; kwargs
     Vₛ(p) = surfacewatervapourcontentannual(latlon::LatLon, p::Real; alt = nothing)
 
 Computes annual surface integrated water vapour content based Section 2 of the P2145-0
-Recommendation and assuming the surface to be loacted at `alt` km above sea
+Recommendation and assuming the surface to be located at `alt` km above sea
 level.
 
 If the function is called with the `LatLon` target position as sole positional
@@ -253,7 +255,7 @@ described in Section 2.1 of the P2145-0 Recommendation.
 - `p::Real`: exceedance probability (%)      
 
 # Keyword Arguments
-- `alt::Union{Nothing, Real}`: altitude (km). If providedas `nothing` (default) this will be computed based on the location and following Recommendation P1511-3
+- `alt::Union{Nothing, Real}`: altitude (km). If provided as `nothing` (default) this will be computed based on the location and following Recommendation P1511-3
 
 # Returns
 - `V̄ₛ::Float64` or `Vₛ(p)::Float64`: computed annual integrated water vapour content (g/m^2)

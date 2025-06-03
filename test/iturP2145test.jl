@@ -1,11 +1,4 @@
-@testsnippet setup_2145 begin
-    using ItuRPropagation
-    using Test
-    using XLSX
-    validation_file = joinpath(@__DIR__, "CG-3M3J-13-ValEx-Rev8.3.0.xlsx")
-end
-
-@testitem "P.2145-0 - Surface temperature model" setup=[setup_2145] begin
+@testitem "P.2145-0 - Surface temperature model" setup=[setup_common] begin
     entries = XLSX.openxlsx(validation_file) do wb
         sheet = XLSX.getsheet(wb, "P.2145 CLIMATIC_MAPS_GAS_ATT")
         map(eachrow(sheet["C23:N101"])) do row

@@ -1,5 +1,11 @@
 using TestItemRunner
 
+@testsnippet setup_common begin
+    using ItuRPropagation
+    using Test
+    using XLSX
+    validation_file = joinpath(@__DIR__, "CG-3M3J-13-ValEx-Rev8.3.0.xlsx")
+end
 @testitem "Aqua" begin
     using Aqua
     using ItuRPropagation
