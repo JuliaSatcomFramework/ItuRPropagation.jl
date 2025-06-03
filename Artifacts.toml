@@ -5,6 +5,13 @@ git-tree-sha1 = "761159e8f1b719fd9bcda4757089ac64eb70a2d5"
     sha256 = "02c9e331d09a5362f7b46a9ce78d483cce47e2f0cb1389a48c633c50626ed268"
     url = "https://github.com/disberd/ItuRPropagation.jl/releases/download/input-maps-artifact/input_maps.tar.gz"
 
+[p1511]
+git-tree-sha1 = "bcd9fe4ca65cd52fe1238204ebac13d3a587cf13"
+
+    [[p1511.download]]
+    sha256 = "8f6373a114c6faa0baf78a4bac32a3349d646c351053dbfb805922e89345947d"
+    url = "https://github.com/JuliaSatcomFramework/ItuRPropagation.jl/releases/download/artifact_releases/p1511_data.tar.gz"
+
 [p2145_annual]
 git-tree-sha1 = "6aa7e553e00304fd01f89bb7a9278d1a2b4905c2"
 
