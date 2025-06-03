@@ -50,7 +50,8 @@ function create_p1511_artifact()
                             matsize = subname === "TOPO.dat" ? (2164, 4324) : (2165, 4325)
                             filecontent = zip_readentry(subarchive, subname)
                             binfile = joinpath(artifact_folder, replace(subname, r"txt|dat" => "bin"))
-                            data = stack(parseline, eachline(IOBuffer(filecontent))) |> permutedims |> reverse # The data is permuted because stack creates a transposed matrix in this case. It is also reversed (U/D and L/R) because the data has positive lat and positive lon in the upper left corner, while for indexing we want the opposite.
+                            data = stack(parseline, eachline(IOBuffer(filecontent))) |> permutedims # The data is permuted because stack creates a transposed matrix in this case. 
+                            reverse!(data; dims=1) # We also need to reverse the latitude (U/D) because the data has the max (positive) lat at the top while for indexing we want the opposite.
                             size(data) == matsize || error("Unexpected size: $(size(data)) instead of $matsize for file $subname")
                             open(binfile, "w") do io
                                 write(io, data)
