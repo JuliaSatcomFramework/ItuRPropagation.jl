@@ -24,3 +24,7 @@ function parseline(str::AbstractString, ::Type{T} = Float64) where T
     return map(x -> parse(T, x), split(cleaned, ' '))
 end
 
+function parsematrix(file::AbstractString, ::Type{T} = Float64) where T
+    return stack(s -> parseline(s, T), eachline(file)) |> permutedims
+end
+
