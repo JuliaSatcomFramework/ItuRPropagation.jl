@@ -2,7 +2,9 @@ module ItuRP1144
 
 export bilinear_interpolation
 
-using ..ItuRPropagation: ItuRPropagation, LatLon
+using ..ItuRPropagation: ItuRPropagation, LatLon, ItuRVersion
+
+const version = ItuRVersion("ITU-R", "P.1144", 12, "(08/2023)")
 
 #= 
 Bare computation of bilinear interpolation following section 1b of ITU-R P.1144-12.
