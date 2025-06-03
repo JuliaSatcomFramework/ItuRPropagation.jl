@@ -40,9 +40,4 @@ end
     include("iturP840test.jl")
 end
 
-@testitem "P.1511-2 - Topography for Earth-space propagation modelling
-" begin
-    include("iturP1511test.jl")
-end
-
 @run_package_tests verbose=true

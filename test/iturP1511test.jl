@@ -1,4 +1,4 @@
-@testitem "P.1511-3 - Topographic height model" setup=[setup_common] begin
+@testitem "P.1511-3 - Topography for Earth-space propagation modelling" setup=[setup_common] begin
     entries = XLSX.openxlsx(validation_file) do wb
         sheet = XLSX.getsheet(wb, "P.1511 TOPO")
         map(eachrow(sheet["C23:E37"])) do row
