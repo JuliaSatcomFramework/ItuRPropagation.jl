@@ -1,5 +1,11 @@
 using TestItemRunner
 
+@testsnippet setup_common begin
+    using ItuRPropagation
+    using Test
+    using XLSX
+    validation_file = joinpath(@__DIR__, "CG-3M3J-13-ValEx-Rev8.3.0.xlsx")
+end
 @testitem "Aqua" begin
     using Aqua
     using ItuRPropagation
@@ -32,11 +38,6 @@ end
 
 @testitem "P.840-9 - Attenuation due to clouds and fog" begin
     include("iturP840test.jl")
-end
-
-@testitem "P.1511-2 - Topography for Earth-space propagation modelling
-" begin
-    include("iturP1511test.jl")
 end
 
 @run_package_tests verbose=true

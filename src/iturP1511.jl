@@ -7,37 +7,34 @@ height data for the prediction of propagation effects for Earth-space paths in I
 
 using ..ItuRPropagation
 using Artifacts
-const version = ItuRVersion("ITU-R", "P.1511", 2, "(08/2019)")
+const version = ItuRVersion("ITU-R", "P.1511", 3, "(08/2023)")
 
 #region initialization
 
-const topolatsize::Int64 = 2164
-const topolonsize::Int64 = 4324
-
-const topolatvalues = [(-90.125 + (i - 1) * (1 / 12)) for i in 1:topolatsize]
-const topolonvalues = [(-180.125 + (j - 1) * (1 / 12)) for j in 1:topolonsize]
-
-const topoheightdata = zeros(Float64, (topolatsize, topolonsize))
-
-const initialized = Ref{Bool}(false)
-
-function initialize()
-    initialized[] && return nothing
-read!(
-    joinpath(artifact"input-maps", "topo_$(string(topolatsize))_x_$(string(topolonsize)).bin"),
-    topoheightdata
+const GRID_DATA = (;
+    topo = let 
+        latrange = range(-90.125, 90.125, step=1/12)
+        lonrange = range(-180.125, 180.125, step=1/12)
+        matsize = (length(latrange), length(lonrange))
+        data = read!(artifact"p1511/TOPO.bin", zeros(matsize))
+        (; latrange, lonrange, data)
+    end,
+    # For the moment we skip the geoid undulation as we don't use it
+    # egm = let
+    #     latrange = range(-90 - 2/12, 90 + 2/12, step=1/12)
+    #     lonrange = range(-180 - 2/12, 180 + 2/12, step=1/12)
+    #     matsize = (length(latrange), length(lonrange))
+    #     data = read!(artifact"p1511/EGM2008.bin", zeros(matsize))
+    #     (; latrange, lonrange, data)
+    # end,
 )
-    initialized[] = true
-    return nothing
-end
-
 #endregion initialization
 
 """
     topographicheight(latlon::LatLon)
     topographicheight(lat::Float64, lon::Float64)
 
-Calculates topographic height based on bicubic interpolation in Section 1 of Annex 1.
+Calculates topographic height as per Section 1.1 of ITU-R P.1511-3.
 
 # Arguments
 - `latlon::LatLon`: latitude and longitude (degrees)
@@ -45,44 +42,11 @@ Calculates topographic height based on bicubic interpolation in Section 1 of Ann
 # Return
 - `I::Real`: height (km)
 """
-topographicheight(latlon::LatLon) = topographicheight(latlon.lat, latlon.lon)
-function topographicheight(lat, lon)
-    initialize()
-    latrange = searchsorted(topolatvalues, lat)
-    lonrange = searchsorted(topolonvalues, lon)
-    R = latrange.stop - 1
-    C = lonrange.stop - 1
-
-    δg = 1 / 12
-    r = ((90.125 + lat) / δg) + 1
-    c = ((180.125 + lon) / δg) + 1
-
-    # row interpolation
-    δ = (c - C)
-    K₀ = (-0.5) * δ^3 + 2.5 * δ^2 - 4 * δ + 2
-    δ = (c - C - 1)
-    K₁ = 1.5 * δ^3 - 2.5 * δ^2 + 1
-    δ = (C + 2 - c)
-    K₂ = 1.5 * δ^3 - 2.5 * δ^2 + 1
-    δ = (C + 3 - c)
-    K₃ = (-0.5) * δ^3 + 2.5 * δ^2 - 4 * δ + 2
-
-    RI₀ = topoheightdata[R, C] * K₀ + topoheightdata[R, C+1] * K₁ + topoheightdata[R, C+2] * K₂ + topoheightdata[R, C+3] * K₃
-    RI₁ = topoheightdata[R+1, C] * K₀ + topoheightdata[R+1, C+1] * K₁ + topoheightdata[R+1, C+2] * K₂ + topoheightdata[R+1, C+3] * K₃
-    RI₂ = topoheightdata[R+2, C] * K₀ + topoheightdata[R+2, C+1] * K₁ + topoheightdata[R+2, C+2] * K₂ + topoheightdata[R+2, C+3] * K₃
-    RI₃ = topoheightdata[R+3, C] * K₀ + topoheightdata[R+3, C+1] * K₁ + topoheightdata[R+3, C+2] * K₂ + topoheightdata[R+3, C+3] * K₃
-
-    δ = (r - R)
-    K₀ = (-0.5) * δ^3 + 2.5 * δ^2 - 4 * δ + 2
-    δ = (r - R - 1)
-    K₁ = 1.5 * δ^3 - 2.5 * δ^2 + 1
-    δ = (R + 2 - r)
-    K₂ = 1.5 * δ^3 - 2.5 * δ^2 + 1
-    δ = (R + 3 - r)
-    K₃ = (-0.5) * δ^3 + 2.5 * δ^2 - 4 * δ + 2
-
-    I = RI₀ * K₀ + RI₁ * K₁ + RI₂ * K₂ + RI₃ * K₃
-    return I <= 0 ? 1e-6 : I
+topographicheight(lat, lon) = topographicheight(LatLon(lat, lon))
+function topographicheight(latlon::LatLon)
+    grid_data = GRID_DATA.topo
+    alt = ItuRP1144.bicubic_interpolation(grid_data.data, latlon, grid_data.latrange, grid_data.lonrange) / 1e3
+    return alt
 end
 
 end # module ItuRP1511
