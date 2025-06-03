@@ -1,3 +1,10 @@
+[p1511]
+git-tree-sha1 = "0fbedf0b723f5523f77f00b98ad5a6e4a8dc2da7"
+
+    [[p1511.download]]
+    sha256 = "09c886a413312a128b1cac98b30cda9acb88f2d7d85c409d1251fc7a39bb30eb"
+    url = "https://github.com/JuliaSatcomFramework/ItuRPropagation.jl/releases/download/artifact_releases/p1511_data.tar.gz"
+
 [p2145_annual]
 git-tree-sha1 = "6aa7e553e00304fd01f89bb7a9278d1a2b4905c2"
 
