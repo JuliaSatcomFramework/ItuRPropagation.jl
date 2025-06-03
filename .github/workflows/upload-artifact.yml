@@ -9,6 +9,7 @@ on:
         type: choice
         options:
           - p2145.jl
+          - p1511.jl
       # Add more scripts here as you create them
 
 permissions:
@@ -26,6 +27,10 @@ jobs:
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
         fetch-depth: 0
+    
+    - name: Get current timestamp
+      id: timestamp
+      run: echo "current=$(date -u +'%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_OUTPUT
     
     - name: Setup Julia
       uses: julia-actions/setup-julia@v2
@@ -82,7 +87,7 @@ jobs:
         body: |
           Uploaded artifact: `${{ steps.julia_script.outputs.asset_file }}`
           - Script executed: `${{ github.event.inputs.script }}`
-          - Created at: ${{ github.event.time }}
+          - Created at: ${{ steps.timestamp.outputs.current }}
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     
@@ -111,7 +116,7 @@ jobs:
           **Details:**
           - Script executed: `${{ github.event.inputs.script }}`
           - Artifact uploaded: `${{ steps.julia_script.outputs.asset_file }}`
-          - Generated at: ${{ github.event.time }}
+          - Generated at: ${{ steps.timestamp.outputs.current }}
           
           This PR was automatically created by the artifact generation workflow.
         branch: update-artifacts-toml-${{ github.run_number }}
