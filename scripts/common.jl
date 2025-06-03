@@ -19,3 +19,8 @@ artifact_toml = joinpath(@__DIR__, "..", "Artifacts.toml")
 
 release_root_url = "https://github.com/JuliaSatcomFramework/ItuRPropagation.jl/releases/download/artifact_releases/"
 
+function parseline(str::AbstractString, ::Type{T} = Float64) where T
+    cleaned = replace(strip(str), r" +" => ' ')
+    return map(x -> parse(T, x), split(cleaned, ' '))
+end
+
