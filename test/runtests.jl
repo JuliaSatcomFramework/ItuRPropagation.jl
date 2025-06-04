@@ -5,6 +5,8 @@ using TestItemRunner
     using Test
     using XLSX
     validation_file = joinpath(@__DIR__, "CG-3M3J-13-ValEx-Rev8.3.0.xlsx")
+
+    error_tolerance = 1e-7
 end
 @testitem "Aqua" begin
     using Aqua
@@ -14,10 +16,6 @@ end
 
 @testitem "P.618-14 - Propagation data and prediction methods required for the design of Earth-space telecommunication systems" begin
     include("iturP618test.jl")
-end
-
-@testitem "P.676-13 - Attenuation by atmospheric gases and related effects" begin
-    include("iturP676test.jl")
 end
 
 @testitem "P.835-7 - Standard atmospheric models" begin

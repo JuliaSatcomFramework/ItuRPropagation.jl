@@ -36,7 +36,7 @@ struct Table1Row
     a₆::Float64
 end
 const numberoxygencoefficients = 44
-const TABLE1 = [
+const TABLE1_DATA = [
     Table1Row(50.474214, 0.975, 9.651, 6.69, 0, 2.566, 6.850),
     Table1Row(50.987745, 2.529, 8.653, 7.17, 0, 2.246, 6.800),
     Table1Row(51.50336, 6.193, 7.709, 7.64, 0, 1.947, 6.729),
@@ -86,7 +86,7 @@ const TABLE1 = [
 # from Table 2 of Annex 1, Section 1 of ITU-R P.676-13
 # spectroscopic data for water vapour
 struct Table2Row
-    f₀::Float64
+    f₀::Float64 # water vapour line frequency [GHz]
     b₁::Float64
     b₂::Float64
     b₃::Float64
@@ -180,15 +180,16 @@ function _Sₒ(a₁, a₂, θ, P)
     Sᵢ = a₁ * (1.0e-7 * P * θ^3) * exp(a₂ * (1.0 - θ))
     return Sᵢ
 end
+_Sₒ(r::Table1Row, θ, P) = _Sₒ(r.a₁, r.a₂, θ, P)
 
 
 """
-    _Fₒ(fₒ, a₃, a₄, a₅, a₆, f, θ, P, e)
+    _Fₒ(f₀, a₃, a₄, a₅, a₆, f, θ, P, e)
 
 Oxygen line shape factor - equation 5 of ITU-R P.676-13.
 
 # Arguments
-- `fₒ`: spectroscopic data for oxygen attenuation from Table 1, oxygen line frequency
+- `f₀`: spectroscopic data for oxygen attenuation from Table 1, oxygen line frequency
 - `a₃`: spectroscopic data for oxygen attenuation from Table 1
 - `a₄`: spectroscopic data for oxygen attenuation from Table 1
 - `a₅`: spectroscopic data for oxygen attenuation from Table 1
@@ -201,22 +202,23 @@ Oxygen line shape factor - equation 5 of ITU-R P.676-13.
 # Return
 - `Fᵢ`: oxygen line shape factor
 """
-function _Fₒ(fₒ, a₃, a₄, a₅, a₆, f, θ, P, e)
+function _Fₒ(f₀, a₃, a₄, a₅, a₆, f, θ, P, e)
     df = a₃ * (1.0e-4) * (P * θ^(0.8 - a₄) + (1.1 * e * θ))    # equation 6a - width of the line
     Δf = sqrt(df * df + (2.25e-6))     # equation 6b - accounts for Zeeman splitting of oxygen lines
     δ = (a₅ + (θ * a₆)) * (1.0e-4 * (P + e) * θ^0.8)     # equation 7 - correction factor due to interference
     # effects in oxygen lines
-    Fᵢ = (f / fₒ) * (
+    Fᵢ = (f / f₀) * (
         (
-            (Δf - (δ * (fₒ - f))) / ((fₒ - f)^2 + Δf^2)
+            (Δf - (δ * (f₀ - f))) / ((f₀ - f)^2 + Δf^2)
         )
         +
         (
-            (Δf - (δ * (fₒ + f))) / ((fₒ + f)^2 + Δf^2)
+            (Δf - (δ * (f₀ + f))) / ((f₀ + f)^2 + Δf^2)
         )
     )
     return Fᵢ
 end
+_Fₒ(r::Table1Row, f, θ, P, e) = _Fₒ(r.f₀, r.a₃, r.a₄, r.a₅, r.a₆, f, θ, P, e)
 
 
 """
@@ -237,6 +239,7 @@ function _Sᵥ(b₁, b₂, θ, e)
     Sᵢ = b₁ * 0.1 * e * θ^3.5 * exp(b₂ * (1.0 - θ))
     return Sᵢ
 end
+_Sᵥ(r::Table2Row, θ, e) = _Sᵥ(r.b₁, r.b₂, θ, e)
 
 
 """
@@ -258,22 +261,23 @@ Water vapour line shape factor - equation 5 of ITU-R P.676-13.
 # Return
 - `Fᵢ`: water vapour line shape factor
 """
-function _Fᵥ(fₒ, b₃, b₄, b₅, b₆, f, θ, P, e)
+function _Fᵥ(f₀, b₃, b₄, b₅, b₆, f, θ, P, e)
     Δf = b₃ * 1.0e-4 * (P * θ^b₄ + b₅ * e * θ^b₆)     # equation 6a - width of the line
-    Δf = 0.535 * Δf + sqrt(0.217 * Δf * Δf + (2.1316e-12 * fₒ^2 / θ))     # equation 6b - accounts for Doppler
+    Δf = 0.535 * Δf + sqrt(0.217 * Δf * Δf + (2.1316e-12 * f₀^2 / θ))     # equation 6b - accounts for Doppler
     # broadening of water vapour lines
     # δ = 0     # equation 7
-    Fᵢ = f / fₒ * (
+    Fᵢ = f / f₀ * (
         (
-            (Δf) / ((fₒ - f)^2 + Δf^2)
+            (Δf) / ((f₀ - f)^2 + Δf^2)
         )
         +
         (
-            (Δf) / ((fₒ + f)^2 + Δf^2)
+            (Δf) / ((f₀ + f)^2 + Δf^2)
         )
     )
     return Fᵢ
 end
+_Fᵥ(r::Table2Row, f, θ, P, e) = _Fᵥ(r.f₀, r.b₃, r.b₄, r.b₅, r.b₆, f, θ, P, e)
 
 
 """
@@ -299,9 +303,6 @@ function _gammaoxygen(
     theta = 300 / T     # where portion of equation 3
     e = ρ * T / 216.7     # equation 4
 
-    S = _Sₒ.(a1, a2, theta, P)     # equation 3
-    F = _Fₒ.(f0oxygen, a3, a4, a5, a6, f, theta, P, e)     # equation 5
-
     d = 5.6e-4 * (P + e) * theta^0.8      # equation 9
 
     # equation 8
@@ -311,9 +312,15 @@ function _gammaoxygen(
                (1.4e-12 * P * theta^1.5) / (1 + 1.9e-5 * f^1.5)
            )
 
-    Nppoxygen = sum(S .* F) + NppD     # equation 2a
-    γₒ =  0.1820 * f * Nppoxygen
-    return γₒ
+    Nppₒ = NppD
+    for row in TABLE1_DATA
+        S = _Sₒ(row, theta, P) # Equation 3
+        F = _Fₒ(row, f, theta, P, e) # Equation 5
+        Nppₒ += S * F # Equation 2a
+    end
+
+    γₒ =  0.1820 * f * Nppₒ
+    return (; γₒ, Nppₒ, d)
 end
 
 
@@ -340,10 +347,14 @@ function _gammawater(
     theta = 300 / T     # where portion of equation 3    
     e = ρ * T / 216.7     # equation 4
 
-    S = _Sᵥ.(b1, b2, theta, e)     # equation 3
-    F = _Fᵥ.(f0watervapour, b3, b4, b5, b6, f, theta, P, e)     # equation 5
-    Nppwatervapour = sum(S .* F)     # equation 2b
-    return 0.1820 * f * Nppwatervapour
+    Nppᵥ = 0.0
+    for row in TABLE2_DATA
+        S = _Sᵥ(row, theta, e) # Equation 3
+        F = _Fᵥ(row, f, theta, P, e) # Equation 5
+        Nppᵥ += S * F # Equation 2b
+    end
+    γᵥ = 0.1820 * f * Nppᵥ
+    return (; γᵥ, Nppᵥ)
 end
 
 
@@ -367,73 +378,75 @@ function _gamma(
     P::Real,
     ρ::Real
 )
-    gamma = _gammaoxygen(f, T, P, ρ) + _gammawater(f, T, P, ρ)     # equation 1
-    return gamma
+    outₒ = _gammaoxygen(f, T, P, ρ)
+    outᵥ = _gammawater(f, T, P, ρ)
+    γ = outₒ.γₒ + outᵥ.γᵥ
+    return (; γ, outₒ..., outᵥ...)
 end
 
-#endregion internal use functions
+# #endregion internal use functions
 
-#region initialization
+# #region initialization
 
-const δᵢ = 0.0001 .* exp.(([1:922;] .- 1) ./ 100)     # equation 14
-const δᵢ2 = δᵢ .* δᵢ
-const hᵢ = (δᵢ .- 0.0001) ./ (exp(0.01) - 1) .+ (δᵢ ./ 2)     # equation 15
-const rᵢ = hᵢ .+ (6371) .- (δᵢ ./ 2)
+# const δᵢ = 0.0001 .* exp.(([1:922;] .- 1) ./ 100)     # equation 14
+# const δᵢ2 = δᵢ .* δᵢ
+# const hᵢ = (δᵢ .- 0.0001) ./ (exp(0.01) - 1) .+ (δᵢ ./ 2)     # equation 15
+# const rᵢ = hᵢ .+ (6371) .- (δᵢ ./ 2)
 
-const Tᵢ = ItuRP835.standardtemperature.(hᵢ)
-const Pᵢ = ItuRP835.standardpressure.(hᵢ)
+# const Tᵢ = ItuRP835.standardtemperature.(hᵢ)
+# const Pᵢ = ItuRP835.standardpressure.(hᵢ)
 
-#endregion initialization
+# #endregion initialization
 
 
-"""
-    function gaseousattenuation(latlon::LatLon, f::Real, p::Real, θ::Real, hs::Real=missing)
+# """
+#     function gaseousattenuation(latlon::LatLon, f::Real, p::Real, θ::Real, hs::Real=missing)
 
-Computes exact slant path gaseous attenuation based on Annex 1. δᵢ and hᵢ are computed
-using Equations 14 and 15.
+# Computes exact slant path gaseous attenuation based on Annex 1. δᵢ and hᵢ are computed
+# using Equations 14 and 15.
 
-Per equation 62 of ITU-R P.618-13, a large part of the cloud attenuation and gaseous attenuation is already 
-included in the rain attenuation prediction for time percentages below 1%.
+# Per equation 62 of ITU-R P.618-13, a large part of the cloud attenuation and gaseous attenuation is already 
+# included in the rain attenuation prediction for time percentages below 1%.
 
-# Arguments
-- `latlon::LatLon`: latitude and longitude (degrees)
-- `f::Real`: frequency (GHz)
-- `p::Real`: exceedance probability 1-100 (%)
-- `θ::Real`: elevation angle (degrees)
-- `hs::Real=missing`: altitude of ground station (km)
+# # Arguments
+# - `latlon::LatLon`: latitude and longitude (degrees)
+# - `f::Real`: frequency (GHz)
+# - `p::Real`: exceedance probability 1-100 (%)
+# - `θ::Real`: elevation angle (degrees)
+# - `hs::Real=missing`: altitude of ground station (km)
 
-# Return
-- `Agas`: gaseous attenuation (dB)
-"""
-function gaseousattenuation(
-    latlon::LatLon,
-    f::Real,
-    p::Real,
-    θ::Real,
-    hs::Union{Real,Missing}=missing
-)
-    ρ₀ = ItuRP2145.surfacewatervapourdensityannual(latlon, p, hs)     # equation 62 of ItuRP618
-    ρᵢ = map(zip(hᵢ, Tᵢ, Pᵢ)) do (Z, T, P)
-        ItuRP835.standardwatervapourdensity(Z; T, P, ρ₀)
-    end
-    eᵢ = (Tᵢ .* ρᵢ) ./ (216.7)     # equation 4
-    dryPᵢ = Pᵢ - eᵢ     # must be changed to dry air pressure
+# # Return
+# - `Agas`: gaseous attenuation (dB)
+# """
+# function gaseousattenuation(
+#     latlon::LatLon,
+#     f::Real,
+#     p::Real,
+#     θ::Real,
+#     hs::Union{Real,Missing}=missing
+# )
+#     ρ₀ = ItuRP2145.surfacewatervapourdensityannual(latlon, p, hs)     # equation 62 of ItuRP618
+#     ρᵢ = map(zip(hᵢ, Tᵢ, Pᵢ)) do (Z, T, P)
+#         ItuRP835.standardwatervapourdensity(Z; T, P, ρ₀)
+#     end
+#     eᵢ = (Tᵢ .* ρᵢ) ./ (216.7)     # equation 4
+#     dryPᵢ = Pᵢ - eᵢ     # must be changed to dry air pressure
 
-    nᵢ = ItuRP453.radiorefractiveindex.(Tᵢ, dryPᵢ, eᵢ)
+#     nᵢ = ItuRP453.radiorefractiveindex.(Tᵢ, dryPᵢ, eᵢ)
 
-    β₁ = π / 2 - θ * π / 180
-    n₁ = nᵢ[1]
-    r₁ = rᵢ[1]
+#     β₁ = π / 2 - θ * π / 180
+#     n₁ = nᵢ[1]
+#     r₁ = rᵢ[1]
 
-    βᵢ = asin.((n₁ * r₁ * sin(β₁)) ./ (nᵢ .* rᵢ))     # equation 19b
-    cosβ = cos.(βᵢ)
+#     βᵢ = asin.((n₁ * r₁ * sin(β₁)) ./ (nᵢ .* rᵢ))     # equation 19b
+#     cosβ = cos.(βᵢ)
 
-    # equation 17
-    aᵢ = -1 .* rᵢ .* cos.(βᵢ) .+ sqrt.(rᵢ .* rᵢ .* cosβ .* cosβ + (2) .* rᵢ .* δᵢ + δᵢ2)
-    γᵢ = _gammaoxygen.(f, Tᵢ, dryPᵢ, ρᵢ) .+ _gammawater.(f, Tᵢ, dryPᵢ, ρᵢ)
+#     # equation 17
+#     aᵢ = -1 .* rᵢ .* cos.(βᵢ) .+ sqrt.(rᵢ .* rᵢ .* cosβ .* cosβ + (2) .* rᵢ .* δᵢ + δᵢ2)
+#     γᵢ = _gammaoxygen.(f, Tᵢ, dryPᵢ, ρᵢ) .+ _gammawater.(f, Tᵢ, dryPᵢ, ρᵢ)
 
-    Agas = sum(aᵢ .* γᵢ)     # equation 13
-    return Agas
-end
+#     Agas = sum(aᵢ .* γᵢ)     # equation 13
+#     return Agas
+# end
 
 end # module ItuRP676
