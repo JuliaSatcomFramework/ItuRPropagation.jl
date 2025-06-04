@@ -388,6 +388,30 @@ end
 
 # #region initialization
 
+const R_E = 6371.0     # radius of the Earth (km) for use in P676 calculation
+
+struct SlantPathLayerHelper
+    δ::Float64 # Layer thickness (km)
+    h::Float64 # Height of the bottom part of layer (km), i.e. the altitude at which the layer starts
+    r::Float64
+    T::Float64
+    P::Float64
+end
+function SlantPathLayerHelper(i::Integer)
+    coeff = exp((i - 1) / 100)
+    δ = 0.0001 * coeff # Equation 14
+    h = if i === 1
+        0.0
+    else
+        0.0001 * (coeff - 1) / (exp(0.01) - 1) # Equation 15
+    end
+    r = h + R_E
+    h′ = h + δ / 2
+    T = ItuRP835.standardtemperature(h′)
+    P = ItuRP835.standardpressure(h′)
+    return SlantPathLayerHelper(δ, h, r, T, P)
+end
+
 # const δᵢ = 0.0001 .* exp.(([1:922;] .- 1) ./ 100)     # equation 14
 # const δᵢ2 = δᵢ .* δᵢ
 # const hᵢ = (δᵢ .- 0.0001) ./ (exp(0.01) - 1) .+ (δᵢ ./ 2)     # equation 15
