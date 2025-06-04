@@ -22,6 +22,10 @@ struct LatLon
     end
 end
 
+# This functions 
+_torad(val::Real) = deg2rad(val)
+_todeg(val::Real) = val
+
 Base.show(io::IO, p::LatLon) = print(io, "(", p.lat, ", ", p.lon, ")")
 
 @enum IturEnum begin

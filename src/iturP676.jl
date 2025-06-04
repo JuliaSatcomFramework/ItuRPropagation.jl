@@ -18,7 +18,7 @@ d) a Weibull approximation to the slant path water vapour attenuation for use in
     Recommendation ITU-R P.1853.
 =#
 
-using ..ItuRPropagation
+using ..ItuRPropagation: _torad, ItuRP835, ItuRP453, ItuRVersion
 using Artifacts
 const version = ItuRVersion("ITU-R", "P.676", 13, "(08/2022)")
 
@@ -163,7 +163,7 @@ end
 #region internal use functions
 
 """
-    _Sₒ(a₁, a₂, θ, P)
+    _Sₒ(a₁, a₂, θ, Pd)
 
 Oxygen line strength - equation 3 of ITU-R P.676-13.
 
@@ -171,16 +171,16 @@ Oxygen line strength - equation 3 of ITU-R P.676-13.
 - `a₁`: spectroscopic data for oxygen attenuation from Table 1
 - `a₂`: spectroscopic data for oxygen attenuation from Table 1
 - `θ`: 300/T (temperature in K)
-- `P`: dry atmospheric pressure (hPa)
+- `Pd`: dry atmospheric pressure (hPa)
 
 # Return
 - `Sᵢ`: line strength of oxygen line
 """
-function _Sₒ(a₁, a₂, θ, P)
-    Sᵢ = a₁ * (1.0e-7 * P * θ^3) * exp(a₂ * (1.0 - θ))
+function _Sₒ(a₁, a₂, θ, Pd)
+    Sᵢ = a₁ * (1.0e-7 * Pd * θ^3) * exp(a₂ * (1.0 - θ))
     return Sᵢ
 end
-_Sₒ(r::Table1Row, θ, P) = _Sₒ(r.a₁, r.a₂, θ, P)
+_Sₒ(r::Table1Row, θ, Pd) = _Sₒ(r.a₁, r.a₂, θ, Pd)
 
 
 """
@@ -196,16 +196,16 @@ Oxygen line shape factor - equation 5 of ITU-R P.676-13.
 - `a₆`: spectroscopic data for oxygen attenuation from Table 1
 - `f`: frequency (GHz)
 - `θ`: 300/T (temperature in K)
-- `P`: dry atmospheric pressure (hPa)
+- `Pd`: dry atmospheric pressure (hPa)
 - `e`: water vapour partial pressure (K * g/m^3)
 
 # Return
 - `Fᵢ`: oxygen line shape factor
 """
-function _Fₒ(f₀, a₃, a₄, a₅, a₆, f, θ, P, e)
-    df = a₃ * (1.0e-4) * (P * θ^(0.8 - a₄) + (1.1 * e * θ))    # equation 6a - width of the line
+function _Fₒ(f₀, a₃, a₄, a₅, a₆, f, θ, Pd, e)
+    df = a₃ * (1.0e-4) * (Pd * θ^(0.8 - a₄) + (1.1 * e * θ))    # equation 6a - width of the line
     Δf = sqrt(df * df + (2.25e-6))     # equation 6b - accounts for Zeeman splitting of oxygen lines
-    δ = (a₅ + (θ * a₆)) * (1.0e-4 * (P + e) * θ^0.8)     # equation 7 - correction factor due to interference
+    δ = (a₅ + (θ * a₆)) * (1.0e-4 * (Pd + e) * θ^0.8)     # equation 7 - correction factor due to interference
     # effects in oxygen lines
     Fᵢ = (f / f₀) * (
         (
@@ -218,7 +218,7 @@ function _Fₒ(f₀, a₃, a₄, a₅, a₆, f, θ, P, e)
     )
     return Fᵢ
 end
-_Fₒ(r::Table1Row, f, θ, P, e) = _Fₒ(r.f₀, r.a₃, r.a₄, r.a₅, r.a₆, f, θ, P, e)
+_Fₒ(r::Table1Row, f, θ, Pd, e) = _Fₒ(r.f₀, r.a₃, r.a₄, r.a₅, r.a₆, f, θ, Pd, e)
 
 
 """
@@ -230,7 +230,7 @@ Water vapour line strength - equation 3 of ITU-R P.676-13.
 - `b₁`: spectroscopic data for water vapour attenuation from Table 2
 - `b₂`: spectroscopic data for water vapour attenuation from Table 2
 - `θ`: 300/T (temperature in K)
-- `P`: dry atmospheric pressure (hPa)
+- `e`: water vapour partial pressure (K * g/m^3)
 
 # Return
 - `Sᵢ`: line strength of water vapour line
@@ -243,26 +243,26 @@ _Sᵥ(r::Table2Row, θ, e) = _Sᵥ(r.b₁, r.b₂, θ, e)
 
 
 """
-    _Fᵥ(fₒ, b₃, b₄, b₅, b₆, f, θ, P, e)
+    _Fᵥ(f₀, b₃, b₄, b₅, b₆, f, θ, Pd, e)
 
 Water vapour line shape factor - equation 5 of ITU-R P.676-13.
 
 # Arguments
-- `fₒ`: spectroscopic data for water vapour attenuation from Table 2, water vapour line frequency
+- `f₀`: spectroscopic data for water vapour attenuation from Table 2, water vapour line frequency
 - `b₃`: spectroscopic data for water vapour attenuation from Table 2
 - `b₄`: spectroscopic data for water vapour attenuation from Table 2
 - `b₅`: spectroscopic data for water vapour attenuation from Table 2
 - `b₆`: spectroscopic data for water vapour attenuation from Table 2
 - `f`: frequency (GHz)
 - `θ`: 300/T (temperature in K)
-- `P`: dry atmospheric pressure (hPa)
+- `Pd`: dry atmospheric pressure (hPa)
 - `e`: water vapour partial pressure (K * g/m^3)
 
 # Return
 - `Fᵢ`: water vapour line shape factor
 """
-function _Fᵥ(f₀, b₃, b₄, b₅, b₆, f, θ, P, e)
-    Δf = b₃ * 1.0e-4 * (P * θ^b₄ + b₅ * e * θ^b₆)     # equation 6a - width of the line
+function _Fᵥ(f₀, b₃, b₄, b₅, b₆, f, θ, Pd, e)
+    Δf = b₃ * 1.0e-4 * (Pd * θ^b₄ + b₅ * e * θ^b₆)     # equation 6a - width of the line
     Δf = 0.535 * Δf + sqrt(0.217 * Δf * Δf + (2.1316e-12 * f₀^2 / θ))     # equation 6b - accounts for Doppler
     # broadening of water vapour lines
     # δ = 0     # equation 7
@@ -277,18 +277,18 @@ function _Fᵥ(f₀, b₃, b₄, b₅, b₆, f, θ, P, e)
     )
     return Fᵢ
 end
-_Fᵥ(r::Table2Row, f, θ, P, e) = _Fᵥ(r.f₀, r.b₃, r.b₄, r.b₅, r.b₆, f, θ, P, e)
+_Fᵥ(r::Table2Row, f, θ, Pd, e) = _Fᵥ(r.f₀, r.b₃, r.b₄, r.b₅, r.b₆, f, θ, Pd, e)
 
 
 """
-    _gammaoxygen(f::Real, T::Real, P::Real, ρ::Real)
+    _gammaoxygen(f::Real, T::Real, Pd::Real, ρ::Real)
 
 Oxygen helper for gamma. Part of equation 1 of ITU-R P.676-13.
 
 # Arguments
 - `f::Real`: frequency (GHz)
 - `T::Real`: absolute temperature (K)
-- `P::Real`: dry atmospheric pressure (hPa)
+- `Pd::Real`: dry atmospheric pressure (hPa)
 - `ρ::Real`: water vapour density (g/m^3)
 
 # Return
@@ -297,25 +297,25 @@ Oxygen helper for gamma. Part of equation 1 of ITU-R P.676-13.
 function _gammaoxygen(
     f::Real,
     T::Real,
-    P::Real,
+    Pd::Real,
     ρ::Real
 )
     theta = 300 / T     # where portion of equation 3
     e = ρ * T / 216.7     # equation 4
 
-    d = 5.6e-4 * (P + e) * theta^0.8      # equation 9
+    d = 5.6e-4 * (Pd + e) * theta^0.8      # equation 9
 
     # equation 8
-    NppD = f * P * theta^2 * (
+    NppD = f * Pd * theta^2 * (
                (6.14e-5) / (d * (1 + (f / d)^2))
                +
-               (1.4e-12 * P * theta^1.5) / (1 + 1.9e-5 * f^1.5)
+               (1.4e-12 * Pd * theta^1.5) / (1 + 1.9e-5 * f^1.5)
            )
 
     Nppₒ = NppD
     for row in TABLE1_DATA
-        S = _Sₒ(row, theta, P) # Equation 3
-        F = _Fₒ(row, f, theta, P, e) # Equation 5
+        S = _Sₒ(row, theta, Pd) # Equation 3
+        F = _Fₒ(row, f, theta, Pd, e) # Equation 5
         Nppₒ += S * F # Equation 2a
     end
 
@@ -325,14 +325,14 @@ end
 
 
 """
-    _gammawater(f::Real, P::Real, T::Real, ρ::Real)
+    _gammawater(f::Real, Pd::Real, T::Real, ρ::Real)
 
 Water vapour helper for gamma. Part of equation 1 of ITU-R P.676-13.
 
 # Arguments
 - `f::Real`: frequency (GHz)
 - `T::Real`: absolute temperature (K)
-- `P::Real`: dry atmospheric pressure (hPa)
+- `Pd::Real`: dry atmospheric pressure (hPa)
 - `ρ::Real`: water vapour density (g/m^3)
 
 # Return
@@ -341,7 +341,7 @@ Water vapour helper for gamma. Part of equation 1 of ITU-R P.676-13.
 function _gammawater(
     f::Real,
     T::Real,
-    P::Real,
+    Pd::Real,
     ρ::Real
 )
     theta = 300 / T     # where portion of equation 3    
@@ -350,7 +350,7 @@ function _gammawater(
     Nppᵥ = 0.0
     for row in TABLE2_DATA
         S = _Sᵥ(row, theta, e) # Equation 3
-        F = _Fᵥ(row, f, theta, P, e) # Equation 5
+        F = _Fᵥ(row, f, theta, Pd, e) # Equation 5
         Nppᵥ += S * F # Equation 2b
     end
     γᵥ = 0.1820 * f * Nppᵥ
@@ -359,14 +359,14 @@ end
 
 
 """
-    _gamma(f::Real, P::Real, T::Real, ρ::Real)
+    _gamma(f::Real, Pd::Real, T::Real, ρ::Real)
 
 Primarily to check against Itu-Rpy values. Equation 1 of ITU-R P.676-13.
 
 # Arguments
 - `f::Real`: frequency (GHz)
 - `T::Real`: absolute temperature (K)
-- `P::Real`: dry atmospheric pressure (hPa)
+- `Pd::Real`: dry atmospheric pressure (hPa)
 - `ρ::Real`: water vapour density (g/m^3)
 
 # Return
@@ -375,11 +375,11 @@ Primarily to check against Itu-Rpy values. Equation 1 of ITU-R P.676-13.
 function _gamma(
     f::Real,
     T::Real,
-    P::Real,
+    Pd::Real,
     ρ::Real
 )
-    outₒ = _gammaoxygen(f, T, P, ρ)
-    outᵥ = _gammawater(f, T, P, ρ)
+    outₒ = _gammaoxygen(f, T, Pd, ρ)
+    outᵥ = _gammawater(f, T, Pd, ρ)
     γ = outₒ.γₒ + outᵥ.γᵥ
     return (; γ, outₒ..., outᵥ...)
 end
@@ -390,14 +390,39 @@ end
 
 const R_E = 6371.0     # radius of the Earth (km) for use in P676 calculation
 
-struct SlantPathLayerHelper
-    δ::Float64 # Layer thickness (km)
-    h::Float64 # Height of the bottom part of layer (km), i.e. the altitude at which the layer starts
+# Struct used to store the data used to compute the gas attenuation for a slant path as defined in Section 2.2 of ITU-R P.676-13.
+struct SlantPathLayer
+    "Layer thickness (km)"
+    δ::Float64
+    "Height of the bottom part of layer (km), i.e. the altitude at which the layer starts"
+    h::Float64
+    "Distance from the center of the earth at layer bottom (km)"
     r::Float64
+    "Temperature at layer midpoint (K)"
     T::Float64
+    "Total pressure at layer midpoint (hPa)"
     P::Float64
+    "Water vapour density at layer midpoint (g/m^3)"
+    ρ::Float64
+    "Water vapour partial pressure at layer midpoint (hPa)"
+    e::Float64
+    "Dry atmospheric pressure at layer midpoint (hPa)"
+    Pd::Float64
+    "Refractive index at layer midpoint"
+    n::Float64
 end
-function SlantPathLayerHelper(i::Integer)
+function SlantPathLayer(; δ, h, r = nothing, T = nothing, P = nothing, ρ = nothing, n = nothing)
+    r = @something(r, h + R_E)
+    h′ = h + δ / 2
+    T = @something(T, ItuRP835.standardtemperature(h′))
+    P = @something(P, ItuRP835.standardpressure(h′))
+    ρ = @something(ρ, ItuRP835.standardwatervapourdensity(h′; T, P))
+    e = ρ * T / 216.7     # equation 4
+    Pd = P - e     # must be changed to dry air pressure
+    n = @something(n, ItuRP453.radiorefractiveindex(T, Pd, e))
+    return SlantPathLayer(δ, h, r, T, P, ρ, e, Pd, n)
+end
+function SlantPathLayer(i::Integer)
     coeff = exp((i - 1) / 100)
     δ = 0.0001 * coeff # Equation 14
     h = if i === 1
@@ -405,22 +430,38 @@ function SlantPathLayerHelper(i::Integer)
     else
         0.0001 * (coeff - 1) / (exp(0.01) - 1) # Equation 15
     end
-    r = h + R_E
-    h′ = h + δ / 2
-    T = ItuRP835.standardtemperature(h′)
-    P = ItuRP835.standardpressure(h′)
-    return SlantPathLayerHelper(δ, h, r, T, P)
+    return SlantPathLayer(; δ, h)
 end
 
-# const δᵢ = 0.0001 .* exp.(([1:922;] .- 1) ./ 100)     # equation 14
-# const δᵢ2 = δᵢ .* δᵢ
-# const hᵢ = (δᵢ .- 0.0001) ./ (exp(0.01) - 1) .+ (δᵢ ./ 2)     # equation 15
-# const rᵢ = hᵢ .+ (6371) .- (δᵢ ./ 2)
+# These are the standard layers to be used for slant path gaseous attenuation prediction as per Section 2.2 of ITU-R P.676-13.
+const STANDARD_LAYERS = map(SlantPathLayer, 1:922)
 
-# const Tᵢ = ItuRP835.standardtemperature.(hᵢ)
-# const Pᵢ = ItuRP835.standardpressure.(hᵢ)
-
+# This computes a single term in the sum of equation 13 of ITU-R P.676-13.
+function layerattenuation(layer::SlantPathLayer, f, el; r₁ = first(STANDARD_LAYERS).r, n₁ = first(STANDARD_LAYERS).n, sinβ₁ = cos(_torad(el))) # β = 90 - el so sin(β) = cos(el)
+    (; δ, r, n, T, Pd, ρ) = layer
+    sinβ = sinβ₁ * n₁ * r₁ / (n * r)
+    cos²β = 1 - sinβ^2
+    cosβ = sqrt(cos²β)
+    β = asin(sinβ)
+    a = -r * cosβ + sqrt(r^2 * cos²β + 2r * δ + δ^2)
+    (; γ, γₒ, γᵥ) = _gamma(f, T, Pd, ρ) # Gamma expects the try air pressure, not the total so we have to pass Pd
+    att = a * γ
+    return (; att, a, γ, γₒ, γᵥ, β)
+end
 # #endregion initialization
+
+# Computes the gaseous attenuation for a slant bath as per Section 2.2.1 of ITU-R P.676-13.
+function _gasattenuation_layers(layers::Vector{SlantPathLayer}, f, el)
+    r₁ = first(layers).r
+    n₁ = first(layers).n
+    sinβ₁ = cos(_torad(el))
+    att = 0.0
+    for layer in layers
+        outs = layerattenuation(layer, f, el; r₁, n₁, sinβ₁)
+        att += outs.att
+    end
+    return att
+end
 
 
 # """

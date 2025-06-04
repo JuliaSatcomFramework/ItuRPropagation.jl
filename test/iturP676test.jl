@@ -1,4 +1,4 @@
-@testitem "P.676-13 - Specific Attenuation Coefficients" setup=[setup_common] begin
+@testitem "P.676-13 - Specific Attenuation Coefficients" setup = [setup_common] begin
 
     @testset "Oxygen coefficients" begin
         entries = XLSX.openxlsx(validation_file) do wb
@@ -8,15 +8,15 @@
             end
             map(zip(fs, eachcol(sheet["E20:I28"]))) do (f, col)
                 (;
-                    P = col[1],
-                    e = col[2],
-                    T = col[3],
-                    ρ = col[4],
-                    S₁ = col[5],
-                    F₁ = col[6],
-                    d = col[7],
-                    Nppₒ = col[8],
-                    γₒ = col[9],
+                    P=col[1],
+                    e=col[2],
+                    T=col[3],
+                    ρ=col[4],
+                    S₁=col[5],
+                    F₁=col[6],
+                    d=col[7],
+                    Nppₒ=col[8],
+                    γₒ=col[9],
                     f,
                 )
             end
@@ -25,13 +25,13 @@
         for entry in entries
             (; P, e, T, ρ, f) = entry
             θ = 300 / T
-            @test entry.S₁ ≈ ItuRP676._Sₒ(tbl1_row, θ, P) rtol=error_tolerance
-            @test entry.F₁ ≈ ItuRP676._Fₒ(tbl1_row, f, θ, P, e) rtol=error_tolerance
+            @test entry.S₁ ≈ ItuRP676._Sₒ(tbl1_row, θ, P) rtol = error_tolerance
+            @test entry.F₁ ≈ ItuRP676._Fₒ(tbl1_row, f, θ, P, e) rtol = error_tolerance
             calc = ItuRP676._gammaoxygen(f, T, P, ρ)
             for fld in (:γₒ, :Nppₒ, :d)
                 validation = getproperty(entry, fld)
                 computed = getproperty(calc, fld)
-                @test validation ≈ computed rtol=error_tolerance
+                @test validation ≈ computed rtol = error_tolerance
             end
         end
     end
@@ -44,15 +44,15 @@
             end
             map(zip(fs, eachcol(sheet["N20:R28"]))) do (f, col)
                 (;
-                    P = col[1],
-                    e = col[2],
-                    T = col[3],
-                    ρ = col[4],
-                    S₁ = col[5],
-                    F₁ = col[6],
+                    P=col[1],
+                    e=col[2],
+                    T=col[3],
+                    ρ=col[4],
+                    S₁=col[5],
+                    F₁=col[6],
                     # d = col[7],
-                    Nppᵥ = col[8],
-                    γᵥ = col[9],
+                    Nppᵥ=col[8],
+                    γᵥ=col[9],
                     f,
                 )
             end
@@ -61,13 +61,13 @@
         for entry in entries
             (; P, e, T, ρ, f) = entry
             θ = 300 / T
-            @test entry.S₁ ≈ ItuRP676._Sᵥ(tbl2_row, θ, e) rtol=error_tolerance
-            @test entry.F₁ ≈ ItuRP676._Fᵥ(tbl2_row, f, θ, P, e) rtol=error_tolerance
+            @test entry.S₁ ≈ ItuRP676._Sᵥ(tbl2_row, θ, e) rtol = error_tolerance
+            @test entry.F₁ ≈ ItuRP676._Fᵥ(tbl2_row, f, θ, P, e) rtol = error_tolerance
             calc = ItuRP676._gammawater(f, T, P, ρ)
             for fld in (:γᵥ, :Nppᵥ)
                 validation = getproperty(entry, fld)
                 computed = getproperty(calc, fld)
-                @test validation ≈ computed rtol=error_tolerance
+                @test validation ≈ computed rtol = error_tolerance
             end
         end
     end
@@ -78,10 +78,10 @@
             sheet = XLSX.getsheet(wb, "P.676-13 SpAtt")
             map(eachrow(sheet["C34:F383"])) do row
                 (;
-                    f = row[1],
-                    γₒ = row[2],
-                    γᵥ = row[3],
-                    γ = row[4]
+                    f=row[1],
+                    γₒ=row[2],
+                    γᵥ=row[3],
+                    γ=row[4]
                 )
             end
         end
@@ -94,8 +94,60 @@
             for fld in (:γ, :γₒ, :γᵥ)
                 validation = getproperty(entry, fld)
                 computed = getproperty(calc, fld)
-                @test validation ≈ computed rtol=error_tolerance
+                @test validation ≈ computed rtol = error_tolerance
             end
         end
+    end
+end
+
+@testitem "P.676-13 - Slant Path Attenuation" setup = [setup_common] begin
+    expected_attenuation = 0.0
+    entries = XLSX.openxlsx(validation_file) do wb
+        sheet = XLSX.getsheet(wb, "P.676-13 A_Gas_A1_2.2.1a")
+        global expected_attenuation = sheet["AB23"]
+        map(eachrow(sheet["H23:Y944"])) do row
+            layer = (;
+                δ = row[1],
+                r = row[2],
+                h = row[4],
+                P = row[6],
+                T = row[7],
+                ρ = row[8],
+                Pd = row[9],
+                e = row[10],
+                n = row[11],
+            )
+            outs = (;
+                β = row[12],
+                a = row[14],
+                γₒ = row[16],
+                γᵥ = row[17],
+                γ = row[18],
+            )
+            (; layer, outs)
+        end
+    end
+    layers = ItuRP676.STANDARD_LAYERS
+    f = 28
+    el = 30
+    @testset "Per Layer results" begin
+        for (n, entry) in enumerate(entries)
+            # Test the basic layer-specific data
+            @test all(propertynames(entry.layer)) do fld
+                implemented = getproperty(layers[n], fld)
+                validation = getproperty(entry.layer, fld)
+                isapprox(implemented, validation; rtol = error_tolerance)
+            end
+            # Test the actual values of attenuation computation per layer
+            outs = ItuRP676.layerattenuation(layers[n], f, el)
+            @test all(propertynames(entry.outs)) do fld
+                validation = getproperty(entry.outs, fld)
+                implemented = getproperty(outs, fld)
+                isapprox(implemented, validation; rtol = error_tolerance)
+            end
+        end
+    end
+    @testset "Total Attenuation" begin
+        @test expected_attenuation ≈ ItuRP676._gasattenuation_layers(layers, f, el) rtol = error_tolerance
     end
 end
