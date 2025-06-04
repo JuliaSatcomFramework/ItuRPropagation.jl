@@ -18,7 +18,7 @@ d) a Weibull approximation to the slant path water vapour attenuation for use in
     Recommendation ITU-R P.1853.
 =#
 
-using ..ItuRPropagation: _torad, ItuRP835, ItuRP453, ItuRVersion
+using ..ItuRPropagation: _torad, ItuRP835, ItuRP453, ItuRVersion, ItuRP1511, LatLon, ItuRP2145
 using Artifacts
 const version = ItuRVersion("ITU-R", "P.676", 13, "(08/2022)")
 
@@ -384,6 +384,68 @@ function _gamma(
     return (; γ, outₒ..., outᵥ...)
 end
 
+# This is just a function to extract the idx of the Part1 row whose frequency is just below the given `f`
+
+@inline function _part1_idx(f)
+    # Doing searchsorted on a steprange of 0.5 is much slower than doing it on an integer steprange. So we just index on 1:700 with 2 * f. We also have to add 1 to the result if f ≥ 118.75 as the oxygen data in Part 1 has an additional line at 118.75 GHz.
+    return searchsortedlast(1:700, 2f - 1) + (f ≥ 118.75 ? 1 : 0)
+end
+
+@inline function _part2_idx(f)
+    # Doing searchsorted on a steprange of 0.5 is much slower than doing it on an integer steprange. So we just index on 1:700 with 2 * f.
+    return searchsortedlast(1:700, 2f - 1)
+end
+
+#= 
+This is the function hₒ which can be used for equation 31 and 34 of Annex 2 of ITU-R P.676-13.
+The inputs are:
+# Arguments
+- `f`: frequency (GHz)
+
+# Keyword arguments
+- `P`: total pressure (hPa)
+- `T`: temperature (K)
+- `ρ`: water vapour density (g/m^3)
+=#
+function _hₒ(f; P, T, ρ)
+    idx = _part1_idx(f)
+    below = PART1_DATA[idx]
+    above = PART1_DATA[min(idx + 1, end)]
+    # Now we do linear interpolation
+    δf = (f - below.f) / (above.f - below.f)
+    aₒ = δf * (above.aₒ - below.aₒ) + below.aₒ
+    bₒ = δf * (above.bₒ - below.bₒ) + below.bₒ
+    cₒ = δf * (above.cₒ - below.cₒ) + below.cₒ
+    dₒ = δf * (above.dₒ - below.dₒ) + below.dₒ
+    hₒ = aₒ + bₒ * T + cₒ * P + dₒ * ρ
+    return (; hₒ, aₒ, bₒ, cₒ, dₒ, idx, below, above)
+end
+
+#= 
+This is the function hₒ which can be used for equation 31 and 34 of Annex 2 of ITU-R P.676-13.
+The inputs are:
+# Arguments
+- `f`: frequency (GHz)
+
+# Keyword arguments
+- `P`: total pressure (hPa)
+- `T`: temperature (K)
+- `ρ`: water vapour density (g/m^3)
+=#
+function _Kᵥ(f; P, T, ρ)
+    idx = _part2_idx(f)
+    below = PART2_DATA[idx]
+    above = PART2_DATA[min(idx + 1, end)]
+    # Now we do linear interpolation
+    δf = (f - below.f) / (above.f - below.f)
+    aᵥ = δf * (above.aᵥ - below.aᵥ) + below.aᵥ
+    bᵥ = δf * (above.bᵥ - below.bᵥ) + below.bᵥ
+    cᵥ = δf * (above.cᵥ - below.cᵥ) + below.cᵥ
+    dᵥ = δf * (above.dᵥ - below.dᵥ) + below.dᵥ
+    Kᵥ = aᵥ + bᵥ * ρ + cᵥ * T + dᵥ * P
+    return (; Kᵥ, aᵥ, bᵥ, cᵥ, dᵥ, idx, below, above)
+end
+
 # #endregion internal use functions
 
 # #region initialization
@@ -461,6 +523,51 @@ function _gasattenuation_layers(layers::Vector{SlantPathLayer}, f, el)
         att += outs.att
     end
     return att
+end
+
+"""
+    slantoxygenattenuation(latlon, f, el, p; γₒ = nothing, alt = nothing)
+    slantoxygenattenuation(latlon, f, el; γₒ = nothing, alt = nothing, P, T, ρ)
+
+Computes the slant path gaseous attenuation for oxygen as per equation 32 in Section 1.2, Annex 2 of ITU-R P.676-13.
+
+# Arguments
+- `latlon::LatLon`: latitude and longitude (degrees)
+- `f`: frequency (GHz)
+- `el`: elevation angle (degrees)
+- `p`: exceedance probability 1-100 (%). If provided (first method), the pressure, temperature and gas vapour density are computed at the target probability based on the provided location using the ITU-R P.2145 algorithms.
+
+# Keyword arguments
+- `γₒ`: specific attenuation due to oxygen (dB/km), computed based on mean atmospheric conditions at the provided location if not provided
+- `alt`: Altitude of the provided location above sea level (km). If not provided, it is computed from the provided location using the ITU-R P.1511 model
+- `P`: Surface total pressure at the desired exceedance probability (hPa), at the desired location.
+- `T`: Surface temperature at the desired exceedance probability (K), at the desired location.
+- `ρ`: Surface water vapour density at the desired exceedance probability (g/m^3), at the desired location.
+"""
+function slantoxygenattenuation end
+
+function _slantoxygenattenuation(latlon::LatLon, f, el; γₒ = nothing, alt = nothing, P, T, ρ)
+    γₒ = @something γₒ let
+        alt = @something(alt, ItuRP1511.topographicheight(latlon))
+        P̄ = ItuRP2145.surfacepressureannual(latlon; alt)
+        T̄ = ItuRP2145.surfacetemperatureannual(latlon; alt)
+        ρ̄ = ItuRP2145.surfacewatervapourdensityannual(latlon; alt)
+        ē = ρ̄ * T̄ / 216.7
+        Pd = P̄ - ē
+        _gammaoxygen(f, T̄, Pd, ρ̄).γₒ
+    end
+    (; hₒ, aₒ, bₒ, cₒ, dₒ) = _hₒ(f; P, T, ρ)
+    sinθ = sin(_torad(el))
+    Aₒ_zenith = γₒ * hₒ
+    Aₒ = Aₒ_zenith / sinθ
+    return (; Aₒ, Aₒ_zenith, γₒ, hₒ, aₒ, bₒ, cₒ, dₒ, P, T, ρ)
+end
+function _slantoxygenattenuation(latlon::LatLon, f, el, p; γₒ = nothing, alt = nothing)
+    alt = @something(alt, ItuRP1511.topographicheight(latlon))
+    P = ItuRP2145.surfacepressureannual(latlon, p; alt)
+    T = ItuRP2145.surfacetemperatureannual(latlon, p; alt)
+    ρ = ItuRP2145.surfacewatervapourdensityannual(latlon, p; alt)
+    _slantoxygenattenuation(latlon, f, el; γₒ, alt, P, T, ρ)
 end
 
 

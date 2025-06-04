@@ -100,7 +100,7 @@
     end
 end
 
-@testitem "P.676-13 - Slant Path Attenuation" setup = [setup_common] begin
+@testitem "P.676-13 - Slant Path Layered Attenuation" setup = [setup_common] begin
     expected_attenuation = 0.0
     entries = XLSX.openxlsx(validation_file) do wb
         sheet = XLSX.getsheet(wb, "P.676-13 A_Gas_A1_2.2.1a")
@@ -150,4 +150,69 @@ end
     @testset "Total Attenuation" begin
         @test expected_attenuation ≈ ItuRP676._gasattenuation_layers(layers, f, el) rtol = error_tolerance
     end
+end
+
+@testitem "P.676-13 - Slant Path Statistical (Annual) Attenuation" setup = [setup_common] begin
+    entries = XLSX.openxlsx(validation_file) do wb
+        sheet = XLSX.getsheet(wb, "P.676-13 A_Gas_A2_STAT")
+        map(eachrow(sheet["C24:AP100"])) do row
+            aux = (;
+                latlon = LatLon(row[1], row[2]),
+                alt = row[3],
+                f = row[5], # GHz
+                P̄ = row[6], # hPa
+                el = row[7], # °
+                ρ̄ = row[8], # g/m^3
+                T̄ = row[9], # K
+                ē = row[10], # hPa
+                P̄d = row[11], # hPa
+                p = row[12], # %
+                P = row[13], # hPa
+                T = row[14], # K
+                ρ = row[15], # g/m^3
+            )
+            oxygen = (;
+                γₒ = row[16], # dB/km
+                aₒ = row[17],
+                bₒ = row[18],
+                cₒ = row[19],
+                dₒ = row[20],
+                hₒ = row[21],
+                Aₒ_zenith = row[22], # dB
+                Aₒ = row[23], # dB
+            )
+            (; aux, oxygen)
+        end
+    end
+
+    @testset "Auxiliary Values" begin
+        for entry in entries
+            (; latlon, f, alt, P̄, T̄, ρ̄, ē, P̄d, p, P, T, ρ) = entry.aux
+            @test alt ≈ ItuRP1511.topographicheight(latlon) rtol = error_tolerance
+            # We check the 2145 values
+            @test P̄ ≈ ItuRP2145.surfacepressureannual(latlon; alt) rtol = error_tolerance
+            @test T̄ ≈ ItuRP2145.surfacetemperatureannual(latlon; alt) rtol = error_tolerance
+            @test ρ̄ ≈ ItuRP2145.surfacewatervapourdensityannual(latlon; alt) rtol = error_tolerance
+            @test P ≈ ItuRP2145.surfacepressureannual(latlon, p; alt) rtol = error_tolerance
+            @test T ≈ ItuRP2145.surfacetemperatureannual(latlon, p; alt) rtol = error_tolerance
+            @test ρ ≈ ItuRP2145.surfacewatervapourdensityannual(latlon, p; alt) rtol = error_tolerance
+        end
+    end
+
+    @testset "Oxygen" begin
+        for (n, entry) in enumerate(entries)
+            (; latlon, f, alt, el, p) = entry.aux
+            out = ItuRP676._slantoxygenattenuation(latlon, f, el, p; alt)
+            @test all(propertynames(entry.oxygen)) do fld
+                validation = getproperty(entry.oxygen, fld)
+                computed = getproperty(out, fld)
+                valid = isapprox(computed, validation; rtol = error_tolerance)
+                if !valid
+                    @warn "Oxygen entry $n, $fld: $computed != $validation"
+                end
+                valid
+            end
+        end
+    end
+
 end
