@@ -11,6 +11,7 @@ on:
           - p2145.jl
           - p1511.jl
           - p676.jl
+          - p840.jl
       # Add more scripts here as you create them
 
 permissions:
