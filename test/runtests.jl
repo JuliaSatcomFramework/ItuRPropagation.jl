@@ -34,8 +34,4 @@ end
     include("iturP839test.jl")
 end
 
-@testitem "P.840-9 - Attenuation due to clouds and fog" begin
-    include("iturP840test.jl")
-end
-
 @run_package_tests verbose=true

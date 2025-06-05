@@ -103,8 +103,42 @@ function _Kₗ(
     return (; Kₗ, η, ϵ′′, ϵ′)
 end
 
+# This is implementing Equation 12/14
+function _K_L(f)
+    nt = _Kₗ(f, 273.75)
+    A₁ = 0.1522
+    A₂ = 11.51
+    A₃ = -10.4912
+    f₁ = -23.9589
+    f₂ = 219.2096
+    σ₁ = 3.2991e3
+    σ₂ = 2.7595e6
+    K_L = nt.Kₗ * (
+        A₁ * exp(-(f - f₁)^2 / σ₁) +
+        A₂ * exp(-(f - f₂)^2 / σ₂) +
+        A₃
+    )
+    return (; K_L, nt...)
+end
+
 #endregion internal functions
 
+"""
+    liquidwatercontent(latlon, p)
+
+Computes the integrated liquid water content at a given location and exceedance probability based on the digital annual maps in Part 1 of the Recommendation P.840-8.
+
+# Arguments
+- `latlon`: object representing latitude and longitude, must be convertible to `ItuRPropagation.LatLon`
+- `p`: exceedance probability (%)   
+"""
+function liquidwatercontent(latlon, p)
+    itp = @something(ANNUAL_DATA.ccdf,let
+        initialize!()
+        ANNUAL_DATA.ccdf
+    end)::SquareGridStatisticalData{SGD_TYPE}
+    return itp(latlon, p)
+end
 
 """
     cloudattenuation(latlon, f, elevation, p)
@@ -121,11 +155,7 @@ Computes annual cloud attenuation along a slant path based on Section 3.
 - `Acloud::Real`: slant path cloud attenuation (dB)
 """
 function cloudattenuation(latlon, f, el, p)
-    itp = @something(ANNUAL_DATA.ccdf,let
-        initialize!()
-        ANNUAL_DATA.ccdf
-    end)::SquareGridStatisticalData{SGD_TYPE}
-    L = itp(latlon, p)
+    L = liquidwatercontent(latlon, p)
     return cloudattenuation(latlon, f, el; L)
 end
 function cloudattenuation(
@@ -138,10 +168,10 @@ function cloudattenuation(
     # Section 3.2, equation 13
     deg2rad(5) ≤ el ≤ deg2rad(90) || @warn("ItuR840.cloudattenuation only supports elevation angles between 5 and 90 degrees.\nThe given elevation angle $el degrees is outside this range.")
 
-    (; Kₗ) = _Kₗ(f)
+    (; K_L) = _K_L(f)
 
     # equation 12
-    Acloud = L * Kₗ / sin(el)
+    Acloud = L * K_L / sin(el)
     return Acloud
 end
 
