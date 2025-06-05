@@ -12,6 +12,7 @@ This file contains the changelog for the ItuRPropagation package. It follows the
 - The implementation of module `ItuRP1511` has been refactored to use bicubic interpolation from the `ItuRP1144` module and to rely on different indpendent artifact for 1511 data. It also now updated to version 3 of ITU-R P.1511
 - Refactored the internal implementation of the `ItuRP676` to rely on some artifacts for Part1 and Part2 annexes rather than hardcoding in file.
   - The tests have also been changed to directly parse the data from the ITU validation excel
+- The `ItuRP676.gaseousattenuation` is now correctly respecting the implementation in Annex 2 of ITU-R P.676-13, computing statistical gaseous attenuation between 1 and 350GHz
 
 ### Added
 - A new `ItuRP1144` module has been added to hold the interpolation functions defined recommendation ITU-R P.1144-12.

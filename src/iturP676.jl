@@ -607,14 +607,19 @@ See the extended help for the signature of the function with precomputed interme
 
 ## Alternative method
 
+When the values (both average and ccdf) of Pressure, Temeprature and water vapour density are already available, the computation can be made faster by using this alternative method that takes all the useful parameters as keyword arguments.
+
+This method can also be used to simulated oxygen/gas attenuations based on instantaneous values of the surface parameters as per Sections 1.1 and 2.2 of Annex 2.
+In this case, the instantaneous values of P, T and ρ should be explicitly provided for the ccdf values with the same name, but also to the kwargs related to mean values (i.e. P̄, T̄ and ρ̄ respectively).
+
     gaseousattenuation(latlon, f, el; kwargs...)
 
 An additional method is available, for cases where the statistical values of the surface parameters are already available and do not need to be computed internally.
 
 This method do not accept the outage probability `p` as last argument but expects he following keyword arguments specifying the various surface paramters (both in mean value and in ccdf statistical value):
-- `P_mean` (or `P̄`): Average surface total pressure (hPa) at the desired location
-- `T_mean` (or `T̄`): Average surface temperature (K) at the desired location
-- `rho_mean` (or `ρ̄`): Average surface water vapour density (g/m^3) at the desired location
+- `P_mean` (or `P̄`): Average surface total pressure (hPa) at the desired location. In case this method is used for simulating attenuation based on instantaneous values, the instantaneous total pressure `P` should be provided also as value to this kwarg.
+- `T_mean` (or `T̄`): Average surface temperature (K) at the desired location. In case this method is used for simulating attenuation based on instantaneous values, the instantaneous temperature `T` should be provided also as value to this kwarg.
+- `rho_mean` (or `ρ̄`): Average surface water vapour density (g/m^3) at the desired location. In case this method is used for simulating attenuation based on instantaneous values, the instantaneous water vapour density `ρ` should be provided also as value to this kwarg.
 - `P`: Surface total pressure (hPa) at the desired exceedance probability, at the desired location.
 - `T`: Surface temperature (K) at the desired exceedance probability, at the desired location.
 - `rho`: Surface water vapour density (g/m^3) at the desired exceedance probability, at the desired location.
