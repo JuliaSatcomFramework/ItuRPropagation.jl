@@ -6,7 +6,7 @@ temperature, surface water vapour density and integrated water vapour content re
 gaseous attenuation and related effects on terrestrial and Earth-space paths.
 =#
 
-using ..ItuRPropagation: ItuRPropagation, LatLon, ItuRVersion, SquareGridInterpolator, ItuRP1511, ItuRP1144
+using ..ItuRPropagation: ItuRPropagation, LatLon, ItuRVersion, ItuRP1511, ItuRP1144, _tolaton, _tokm
 using Artifacts: Artifacts, @artifact_str
 
 export surfacetemperatureannual, surfacewatervapourdensityannual, surfacepressureannual, surfacewatervapourcontentannual
@@ -116,13 +116,15 @@ end
     (; pindexabove, pindexbelow)
 end
 
-function (nt::SingleVariableData)(latlon::LatLon; alt = nothing)
-    alt = @something(alt, ItuRP1511.topographicheight(latlon))
+function (nt::SingleVariableData)(latlon; alt = nothing)
+    latlon = _tolaton(latlon)
+    alt = @something(alt, ItuRP1511.topographicheight(latlon)) |> _tokm
     (; idxs, δr, δc) = itp_inputs(latlon)
     bilinear_interpolation(nt.mean, nt.scale, nt.Z_ground, nt.scale_func, idxs, δr, δc; alt)
 end
-function (nt::SingleVariableData)(latlon::LatLon, p::Real; alt = nothing)
-    alt = @something(alt, ItuRP1511.topographicheight(latlon))
+function (nt::SingleVariableData)(latlon, p::Real; alt = nothing)
+    latlon = _tolaton(latlon)
+    alt = @something(alt, ItuRP1511.topographicheight(latlon)) |> _tokm
     (; idxs, δr, δc) = itp_inputs(latlon)
     (; pindexabove, pindexbelow) = itp_inputs(p)
     
@@ -261,5 +263,29 @@ described in Section 2.1 of the P2145-0 Recommendation.
 - `V̄ₛ::Float64` or `Vₛ(p)::Float64`: computed annual integrated water vapour content (g/m^2)
 """
 surfacewatervapourcontentannual(args...; kwargs...) = getvariable(Val(:V))(args...; kwargs...)
+
+
+"""
+    _annual_surface_values(latlon[, p]; alt = nothing)
+
+This function is used to provide the annual surface values for variables refrenced in P676 and P618:
+- `P`: The total barometric pressure
+- `T`: The surface temperature
+- `ρ`: The surface water vapour density
+
+The function can be called with the outage probability `p` as second positional argument to compute the statsitical values, or without to compute the mean values.
+
+It also compute the altitude of the provided location if provided as nothing as kwarg
+"""
+function _annual_surface_values(latlon, args...; alt = nothing)
+    alt = @something(alt, ItuRP1511.topographicheight(latlon))
+    P = surfacepressureannual(latlon, args...; alt)
+    T = surfacetemperatureannual(latlon, args...; alt)
+    ρ = surfacewatervapourdensityannual(latlon, args...; alt)
+    return (; P, T, ρ, alt)
+end
+
+
+
 
 end # module ItuRP2145
