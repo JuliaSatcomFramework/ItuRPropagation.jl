@@ -6,12 +6,12 @@ function create_p840_annual_artifact()
 
     if isnothing(_artifact_hash) || !Artifacts.artifact_exists(_artifact_hash)
         _artifact_hash = Artifacts.create_artifact() do artifact_folder
-            # This is the URL for direct download of the zip file containing the Part 1 of the ITU-R P.840-8 recommendation (Annual Data)
+            # This is the URL for direct download of the zip file containing the Part 1 of the ITU-R P.840-9 recommendation (Annual Data)
             url = "https://www.itu.int/dms_pubrec/itu-r/rec/p/R-REC-P.840Part01-0-202308-I!!ZIP-E.zip"
 
             zip_path = joinpath(downloads_dir, "p840_2023_Part1_annual.zip")
             if !isfile(zip_path)
-                @info "Downloading raw zip file for ITU-R P.840-8 Part 1 (Annual Data) from ITU Database"
+                @info "Downloading raw zip file for ITU-R P.840-9 Part 1 (Annual Data) from ITU Database"
                 Downloads.download(url, zip_path)
                 @info "Download completed"
             end
@@ -27,9 +27,9 @@ function create_p840_annual_artifact()
 
             # Add a README
             open(joinpath(artifact_folder, "README"), "w") do io
-                println(io, "This folder contains data for the ITU-R P.840-8 recommendation (Annual Data of Integrated Liquid Water Content) directly in binary format.")
+                println(io, "This folder contains data for the ITU-R P.840-9 recommendation (Annual Data of Integrated Liquid Water Content) directly in binary format.")
                 println(io)
-                println(io, "It was automatically generated from the TXT files of the Part 1 annex of the ITU-R P.840-8 recommendation available at the following URL:")
+                println(io, "It was automatically generated from the TXT files of the Part 1 annex of the ITU-R P.840-9 recommendation available at the following URL:")
                 println(io)
                 println(io, url)
                 println(io, "The matrices stored into each of the binary files corresponds to a lat/lon grid with $(latres)° x $(lonres)° resolution and have a size of $(matsize) elements.")
