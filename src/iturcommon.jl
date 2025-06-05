@@ -24,10 +24,12 @@ end
 
 # This functions are used for processing inputs and allow easier extension to support types from other packages
 @inline _torad(val::Real) = deg2rad(val)
-@inline _todeg(val::Real) = rad2deg(val)
 
 # We expects length values to be provided in km
 @inline _tokm(val::Real) = val
+
+# We expects inputs in GHz
+@inline _toghz(val::Real) = val
 
 @inline _tolaton(x) = convert(LatLon, x)::LatLon # Type assertion on convert is used to help compiler, see https://github.com/JuliaLang/julia/issues/42372 for more details
 

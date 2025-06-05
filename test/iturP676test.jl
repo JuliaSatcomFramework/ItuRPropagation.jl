@@ -181,7 +181,18 @@ end
                 Aₒ_zenith = row[22], # dB
                 Aₒ = row[23], # dB
             )
-            (; aux, oxygen)
+            water = (;
+                V = row[30], # kg/m2
+                aᵥ = row[32],
+                bᵥ = row[33],
+                cᵥ = row[34],
+                dᵥ = row[35],
+                Kᵥ = row[36],
+                Aᵥ_zenith = row[37], # dB
+                Aᵥ = row[38], # dB
+            )
+            Ag = row[40]
+            (; aux, oxygen, water, Ag)
         end
     end
 
@@ -215,4 +226,27 @@ end
         end
     end
 
+    @testset "Water Vapour" begin
+        for (n, entry) in enumerate(entries)
+            (; latlon, f, alt, el, p) = entry.aux
+            out = ItuRP676._slantwaterattenuation(latlon, f, el, p; alt)
+            @test all(propertynames(entry.water)) do fld
+                validation = getproperty(entry.water, fld)
+                computed = getproperty(out, fld)
+                valid = isapprox(computed, validation; rtol = error_tolerance)
+                if !valid
+                    @warn "Oxygen entry $n, $fld: $computed != $validation"
+                end
+                valid
+            end
+        end
+    end
+
+    @testset "Total Gas Attenuation" begin
+        for (n, entry) in enumerate(entries)
+            (; latlon, f, alt, el, p) = entry.aux
+            Ag = ItuRP676.gaseousattenuation(latlon, f, el, p; alt)
+            @test Ag ≈ entry.Ag rtol = error_tolerance
+        end
+    end
 end

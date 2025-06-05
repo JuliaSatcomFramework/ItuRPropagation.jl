@@ -16,11 +16,15 @@ c) an approximate method in Annex 2 to estimate the statistics of slant path gas
     from local data, a reference profile, or referenced digital maps;
 d) a Weibull approximation to the slant path water vapour attenuation for use in
     Recommendation ITU-R P.1853.
+
+The curren implementation only covers points a) and c) in the above list
 =#
 
-using ..ItuRPropagation: _torad, ItuRP835, ItuRP453, ItuRVersion, ItuRP1511, LatLon, ItuRP2145
+using ..ItuRPropagation: _torad, ItuRP835, ItuRP453, ItuRVersion, ItuRP1511, LatLon, ItuRP2145, _toghz
 using Artifacts
 const version = ItuRVersion("ITU-R", "P.676", 13, "(08/2022)")
+
+export gaseousattenuation
 
 #region coefficients
 
@@ -319,7 +323,7 @@ function _gammaoxygen(
         Nppₒ += S * F # Equation 2a
     end
 
-    γₒ =  0.1820 * f * Nppₒ
+    γₒ = 0.1820 * f * Nppₒ
     return (; γₒ, Nppₒ, d)
 end
 
@@ -473,7 +477,7 @@ struct SlantPathLayer
     "Refractive index at layer midpoint"
     n::Float64
 end
-function SlantPathLayer(; δ, h, r = nothing, T = nothing, P = nothing, ρ = nothing, n = nothing)
+function SlantPathLayer(; δ, h, r=nothing, T=nothing, P=nothing, ρ=nothing, n=nothing)
     r = @something(r, h + R_E)
     h′ = h + δ / 2
     T = @something(T, ItuRP835.standardtemperature(h′))
@@ -499,7 +503,7 @@ end
 const STANDARD_LAYERS = map(SlantPathLayer, 1:922)
 
 # This computes a single term in the sum of equation 13 of ITU-R P.676-13.
-function layerattenuation(layer::SlantPathLayer, f, el; r₁ = first(STANDARD_LAYERS).r, n₁ = first(STANDARD_LAYERS).n, sinβ₁ = cos(_torad(el))) # β = 90 - el so sin(β) = cos(el)
+function layerattenuation(layer::SlantPathLayer, f, el; r₁=first(STANDARD_LAYERS).r, n₁=first(STANDARD_LAYERS).n, sinβ₁=cos(_torad(el))) # β = 90 - el so sin(β) = cos(el)
     (; δ, r, n, T, Pd, ρ) = layer
     sinβ = sinβ₁ * n₁ * r₁ / (n * r)
     cos²β = 1 - sinβ^2
@@ -525,9 +529,9 @@ function _gasattenuation_layers(layers::Vector{SlantPathLayer}, f, el)
     return att
 end
 
-"""
-    slantoxygenattenuation(latlon, f, el, p; γₒ = nothing, alt = nothing)
-    slantoxygenattenuation(latlon, f, el; γₒ = nothing, alt = nothing, P, T, ρ)
+#=
+    _slantoxygenattenuation(latlon, f, el, p; γₒ = nothing, alt = nothing)
+    _slantoxygenattenuation(latlon, f, el; γₒ = nothing, alt = nothing, P, T, ρ)
 
 Computes the slant path gaseous attenuation for oxygen as per equation 32 in Section 1.2, Annex 2 of ITU-R P.676-13.
 
@@ -543,82 +547,116 @@ Computes the slant path gaseous attenuation for oxygen as per equation 32 in Sec
 - `P`: Surface total pressure at the desired exceedance probability (hPa), at the desired location.
 - `T`: Surface temperature at the desired exceedance probability (K), at the desired location.
 - `ρ`: Surface water vapour density at the desired exceedance probability (g/m^3), at the desired location.
-"""
-function slantoxygenattenuation end
-
-function _slantoxygenattenuation(latlon::LatLon, f, el; γₒ = nothing, alt = nothing, P, T, ρ)
-    γₒ = @something γₒ let
-        alt = @something(alt, ItuRP1511.topographicheight(latlon))
-        P̄ = ItuRP2145.surfacepressureannual(latlon; alt)
-        T̄ = ItuRP2145.surfacetemperatureannual(latlon; alt)
-        ρ̄ = ItuRP2145.surfacewatervapourdensityannual(latlon; alt)
-        ē = ρ̄ * T̄ / 216.7
-        Pd = P̄ - ē
-        _gammaoxygen(f, T̄, Pd, ρ̄).γₒ
-    end
+=#
+function _slantoxygenattenuation(latlon::LatLon, f, el; γₒ, P, T, ρ)
     (; hₒ, aₒ, bₒ, cₒ, dₒ) = _hₒ(f; P, T, ρ)
     sinθ = sin(_torad(el))
     Aₒ_zenith = γₒ * hₒ
     Aₒ = Aₒ_zenith / sinθ
     return (; Aₒ, Aₒ_zenith, γₒ, hₒ, aₒ, bₒ, cₒ, dₒ, P, T, ρ)
 end
-function _slantoxygenattenuation(latlon::LatLon, f, el, p; γₒ = nothing, alt = nothing)
-    alt = @something(alt, ItuRP1511.topographicheight(latlon))
-    P = ItuRP2145.surfacepressureannual(latlon, p; alt)
-    T = ItuRP2145.surfacetemperatureannual(latlon, p; alt)
-    ρ = ItuRP2145.surfacewatervapourdensityannual(latlon, p; alt)
-    _slantoxygenattenuation(latlon, f, el; γₒ, alt, P, T, ρ)
+function _slantoxygenattenuation(latlon, f, el, p; γₒ=nothing, alt=nothing)
+    (; P, T, ρ, alt) = ItuRP2145._annual_surface_values(latlon, p; alt)
+    γₒ = @something γₒ let
+        params = ItuRP2145._annual_surface_values(latlon; alt)
+        P̄ = params.P
+        T̄ = params.T
+        ρ̄ = params.ρ
+        ē = ρ̄ * T̄ / 216.7
+        P̄d = P̄ - ē
+        _gammaoxygen(f, T̄, P̄d, ρ̄).γₒ
+    end
+    _slantoxygenattenuation(latlon, f, el; γₒ, P, T, ρ)
+end
+
+# This function compute the slant water vapour attenuation for a given frequency, elevation angle, and atmospheric conditions as per equation 40 of Section 2.3 in Annex 2 of ITU-R P.676-13. The first method expects all relevant surface statistical parameters to be provided as keyword arguments. The second method instead computes them based on the given exceedance probability `p` and location/altitude.
+function _slantwaterattenuation(latlon, f, el; P, T, ρ, V)
+    (; Kᵥ, aᵥ, bᵥ, cᵥ, dᵥ) = _Kᵥ(f; P, T, ρ)
+    sinθ = sin(_torad(el))
+    Aᵥ_zenith = Kᵥ * V
+    Aᵥ = Aᵥ_zenith / sinθ
+    return (; Aᵥ, Aᵥ_zenith, Kᵥ, aᵥ, bᵥ, cᵥ, dᵥ, P, T, ρ, V)
+end
+function _slantwaterattenuation(latlon, f, el, p; alt=nothing)
+    (; P, T, ρ, alt) = ItuRP2145._annual_surface_values(latlon; alt)
+    V = ItuRP2145.surfacewatervapourcontentannual(latlon, p; alt)
+    _slantwaterattenuation(latlon, f, el; P, T, ρ, V)
 end
 
 
-# """
-#     function gaseousattenuation(latlon::LatLon, f::Real, p::Real, θ::Real, hs::Real=missing)
+"""
+    Ag = gaseousattenuation(latlon, f, el, p; alt = nothing)
 
-# Computes exact slant path gaseous attenuation based on Annex 1. δᵢ and hᵢ are computed
-# using Equations 14 and 15.
+Computes the statistical gaseous attenuation for a slant path following the approximate computation specified in Annex 2 of ITU-R P.676-13.
 
-# Per equation 62 of ITU-R P.618-13, a large part of the cloud attenuation and gaseous attenuation is already 
-# included in the rain attenuation prediction for time percentages below 1%.
+More specifically this computes ``Ag = Ao + Aw`` implementing:
+- Equation 32 in Section 1.2 for Oxygen attenuation `Ao`
+- Equation 40 in Section 2.3 for Water vapour attenuation `Aw`
 
-# # Arguments
-# - `latlon::LatLon`: latitude and longitude (degrees)
-# - `f::Real`: frequency (GHz)
-# - `p::Real`: exceedance probability 1-100 (%)
-# - `θ::Real`: elevation angle (degrees)
-# - `hs::Real=missing`: altitude of ground station (km)
+# Arguments
+- `latlon`: Object specifying the latitude and longitude of the location of interest, must be an object that can be converted to an instance of `ItuRPropagation.LatLon`
+- `f`: frequency (GHz)
+- `el`: elevation angle (degrees)
 
-# # Return
-# - `Agas`: gaseous attenuation (dB)
-# """
-# function gaseousattenuation(
-#     latlon::LatLon,
-#     f::Real,
-#     p::Real,
-#     θ::Real,
-#     hs::Union{Real,Missing}=missing
-# )
-#     ρ₀ = ItuRP2145.surfacewatervapourdensityannual(latlon, p, hs)     # equation 62 of ItuRP618
-#     ρᵢ = map(zip(hᵢ, Tᵢ, Pᵢ)) do (Z, T, P)
-#         ItuRP835.standardwatervapourdensity(Z; T, P, ρ₀)
-#     end
-#     eᵢ = (Tᵢ .* ρᵢ) ./ (216.7)     # equation 4
-#     dryPᵢ = Pᵢ - eᵢ     # must be changed to dry air pressure
+# Keyword arguments
+- `alt`: Altitude at the provided location, to be used for computing the various intermediate varaibles. If not provided, default to the altitude computed with `ItuRP1511.topographicheight`
 
-#     nᵢ = ItuRP453.radiorefractiveindex.(Tᵢ, dryPᵢ, eᵢ)
+See the extended help for the signature of the function with precomputed intermediate variables.
 
-#     β₁ = π / 2 - θ * π / 180
-#     n₁ = nᵢ[1]
-#     r₁ = rᵢ[1]
+# Extended help
 
-#     βᵢ = asin.((n₁ * r₁ * sin(β₁)) ./ (nᵢ .* rᵢ))     # equation 19b
-#     cosβ = cos.(βᵢ)
+## Alternative method
 
-#     # equation 17
-#     aᵢ = -1 .* rᵢ .* cos.(βᵢ) .+ sqrt.(rᵢ .* rᵢ .* cosβ .* cosβ + (2) .* rᵢ .* δᵢ + δᵢ2)
-#     γᵢ = _gammaoxygen.(f, Tᵢ, dryPᵢ, ρᵢ) .+ _gammawater.(f, Tᵢ, dryPᵢ, ρᵢ)
+    gaseousattenuation(latlon, f, el; kwargs...)
 
-#     Agas = sum(aᵢ .* γᵢ)     # equation 13
-#     return Agas
-# end
+An additional method is available, for cases where the statistical values of the surface parameters are already available and do not need to be computed internally.
+
+This method do not accept the outage probability `p` as last argument but expects he following keyword arguments specifying the various surface paramters (both in mean value and in ccdf statistical value):
+- `P_mean` (or `P̄`): Average surface total pressure (hPa) at the desired location
+- `T_mean` (or `T̄`): Average surface temperature (K) at the desired location
+- `rho_mean` (or `ρ̄`): Average surface water vapour density (g/m^3) at the desired location
+- `P`: Surface total pressure (hPa) at the desired exceedance probability, at the desired location.
+- `T`: Surface temperature (K) at the desired exceedance probability, at the desired location.
+- `rho`: Surface water vapour density (g/m^3) at the desired exceedance probability, at the desired location.
+- `V`: Surface water vapour content (kg/m^2) at the desired exceedance probability, at the desired location.
+- `gamma_oxygen` (or `γₒ`): Specific attenuation due to oxygen (dB/km) computed from the average surface conditions, at the desired location. **This is computed automatically based on other inputs if not explicitly provided**
+"""
+function gaseousattenuation(latlon, f, el; 
+    P_mean = nothing, P̄ = nothing, # Average surface total pressure at the desired location
+    T_mean = nothing, T̄ = nothing, # Average surface temperature at the desired location
+    rho_mean = nothing, ρ̄ = nothing, # Average surface water vapour density at the desired location
+    P, # Surface total pressure (hPa) at the desired exceedance probability, at the desired location.
+    T, # Surface temperature (K) at the desired exceedance probability, at the desired location.
+    rho = nothing, ρ = nothing, # Surface water vapour density (g/m^3) at the desired exceedance probability, at the desired location.
+    V, # Surface water vapour content (kg/m^2) at the desired exceedance probability, at the desired location.
+    gamma_oxygen = nothing, γₒ = nothing # Specific attenuation due to oxygen (dB/km) computed from the average surface conditions, at the desired location.
+    )
+    f = _toghz(f)
+    1 ≤ f ≤ 350 || throw(ArgumentError("Frequency must be between 1 and 350 GHz for the computation of gaseous attenuation"))
+    P̄ = @something P̄ P_mean throw(ArgumentError("The average total surafce pressure has to be provided using either the `P_mean` or `P̄` keyword argument"))
+    T̄ = @something T̄ T_mean throw(ArgumentError("The average surface temperature has to be provided using either the `T_mean` or `T̄` keyword argument"))
+    ρ̄ = @something ρ̄ rho_mean throw(ArgumentError("The average surface water vapour density has to be provided using either the `rho_mean` or `ρ̄` keyword argument"))
+    ρ = @something ρ rho throw(ArgumentError("The ccdf value of the surface water vapour density has to be provided using either the `rho` or `ρ` keyword argument"))
+    γₒ = @something γₒ gamma_oxygen let
+        ē = ρ̄ * T̄ / 216.7
+        P̄d = P̄ - ē
+        _gammaoxygen(f, T̄, P̄d, ρ̄).γₒ
+    end
+    (; Aₒ) = _slantoxygenattenuation(latlon, f, el; γₒ, P, T, ρ)
+    (; Aᵥ) = _slantwaterattenuation(latlon, f, el; P = P̄, T = T̄, ρ = ρ̄, V)
+    Agas = Aₒ + Aᵥ
+    return Agas
+end
+
+function gaseousattenuation(latlon, f, el, p; alt=nothing)
+    mean_vals = ItuRP2145._annual_surface_values(latlon; alt)
+    P̄ = mean_vals.P
+    T̄ = mean_vals.T
+    ρ̄ = mean_vals.ρ
+    alt = mean_vals.alt
+    (; P, T, ρ) = ItuRP2145._annual_surface_values(latlon, p; alt)
+    V = ItuRP2145.surfacewatervapourcontentannual(latlon, p; alt)
+    gaseousattenuation(latlon, f, el; P̄, T̄, ρ̄, V, P, T, ρ)
+end
 
 end # module ItuRP676
