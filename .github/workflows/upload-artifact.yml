@@ -12,6 +12,7 @@ on:
           - p1511.jl
           - p676.jl
           - p840.jl
+          - p453_nwet_annual.jl
       # Add more scripts here as you create them
 
 permissions:
