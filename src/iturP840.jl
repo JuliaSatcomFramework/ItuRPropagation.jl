@@ -4,122 +4,63 @@ module ItuRP840
 This Recommendation provides methods to predict the attenuation due to clouds and fog on Earth-space paths.
 =#
 
-using ..ItuRPropagation
-using Artifacts
+using ..ItuRPropagation: ItuRPropagation, LatLon, ItuRVersion, _tolatlon, _tokm, _torad
+using ..ItuRP1144: ItuRP1144, AbstractSquareGridITP, SquareGridData, SquareGridStatisticalData
+using Artifacts: Artifacts, @artifact_str
 
-const version = ItuRVersion("ITU-R", "P.840", 8, "(08/2019)")
+const version = ItuRVersion("ITU-R", "P.840", 9, "(08/2023)")
 
 #region initialization
 
-const latsize = 161 + 1 # number of latitude points (-90, 90, 1.125) plus one extra row for interpolation
-const lonsize = 321 + 1 # number of longitude points (-180, 180, 1.125) plus one extra column for interpolation
+const δlat = 0.25
+const δlon = 0.25
+const latrange = range(-90, 90, step=δlat)
+const lonrange = range(-180, 180, step=δlon)
+const datasize = (length(latrange), length(lonrange))
 
-# exceedance probability, section 1 of Annex 1 of ITU-R P.840-8
-const psannual = [0.1, 0.2, 0.3, 0.5, 1, 2, 3, 5, 10, 20, 30, 50, 60, 70, 80, 90, 95, 99]
-const npsannual = length(psannual)
+# exceedance probabilities
+const psannual = [0.01, 0.02, 0.03, 0.05, 0.1, 0.2, 0.3, 0.5, 1, 2, 3, 5, 10, 20, 30, 50, 60, 70, 80, 90, 95, 99]
 
 # exceedance probability values for reading files
-const filespsannual = ["01", "02", "03", "05", "1", "2", "3", "5", "10", "20", "30", "50", "60", "70", "80", "90", "95", "99"]
+const filespsannual = ["001", "002", "003", "005", "01", "02", "03", "05", "1", "2", "3", "5", "10", "20", "30", "50", "60", "70", "80", "90", "95", "99"]
 
-const latvalues = [(-90.0 + (i - 1) * 1.125) for i in 1:latsize]
-const lonvalues = [(-180.0 + (j - 1) * 1.125) for j in 1:lonsize]
+const SGD_TYPE = let
+    T = Float64
+    R = typeof(latrange)
+    SquareGridData{T, R, String}
+end
 
-const columnarcontentdata = zeros(Float64, (npsannual, latsize, lonsize))
+# This will hold the mean and annual ccdf data of integrated liquid water content for computation of the cloud attenuation. The underlying data is already a interpolator that will use bilinear interpolation to find the value at the given location
+@kwdef mutable struct LiquidContentData
+    ccdf::Union{Nothing, SquareGridStatisticalData{SGD_TYPE}} = nothing
+    mean::Union{Nothing, SGD_TYPE} = nothing
+end
 
-const initialized = Ref{Bool}(false)
+const ANNUAL_DATA = LiquidContentData()
 
-function initialize()
-    initialized[] && return nothing
-    columndata = zeros(Float64, (latsize, lonsize))
-    for nps in range(1, npsannual)
-        read!(
-            joinpath(artifact"input-maps", "reducedcloudliquidwaterannual_$(string(latsize))_x_$(string(lonsize))_x_$(filespsannual[nps]).bin"),
-            columndata
-        )
-        for lat in 1:latsize
-            for lon in 1:lonsize
-                columnarcontentdata[nps, lat, lon] = columndata[lat, lon]
-            end
-        end
+function initialize!()
+    isnothing(ANNUAL_DATA.mean) || return nothing
+    @info "P840: Loading annual data of Integrated Liquid Water Content"
+    Lmean = read!(artifact"p840_annual/L_mean.bin", zeros(datasize))
+    ANNUAL_DATA.mean = SquareGridData(latrange, lonrange, Lmean, "Mean Integrated Liquid Water Content")
+    items = map(zip(psannual, filespsannual)) do (p, suffix)
+        data = read!(joinpath(artifact"p840_annual", "L_$(suffix).bin"), zeros(datasize))
+        name = "Integrated Liquid Water Content at $p% exceedance probability"
+        SquareGridData(latrange, lonrange, data, name)
     end
-    initialized[] = true
+    ANNUAL_DATA.ccdf = SquareGridStatisticalData(psannual, items)
     return nothing
 end
+
 
 #endregion initialization
 
 #region internal functions
 
 """
-    _columnarcontent(latlon::LatLon, p::Real)
-
-Computes annual total columnar content of cloud liquid water reduced to 273.15K in Section 3.1.
-    
-# Arguments
-- `latlon::LatLon`: latitude and longitude (degrees)
-- `p::Real`: exceedance probability (%)
-
-# Return
-- `Lred::Real`: annual total columnar content of cloud liquid water (kg/m^2)
-"""
-function _columnarcontent(
-    latlon::LatLon,
-    p::Real,
-)
-    initialize()
-    # Section 3.1 step a
-    prange = searchsorted(psannual, p)
-    pindexbelow = prange.stop
-    pindexabove = prange.start
-    pexact = pindexbelow == pindexabove ? true : false
-
-    latrange = searchsorted(latvalues, latlon.lat)
-    lonrange = searchsorted(lonvalues, latlon.lon)
-    R = latrange.stop
-    C = lonrange.stop
-
-    δg = 1.125
-    r = ((90.0 + latlon.lat) / δg) + 1
-    c = ((180.0 + latlon.lon) / δg) + 1
-
-    Lred00a = columnarcontentdata[pindexabove, R, C]
-    Lred01a = columnarcontentdata[pindexabove, R, C+1]
-    Lred10a = columnarcontentdata[pindexabove, R+1, C]
-    Lred11a = columnarcontentdata[pindexabove, R+1, C+1]
-
-    Lred00b = columnarcontentdata[pindexbelow, R, C]
-    Lred01b = columnarcontentdata[pindexbelow, R, C+1]
-    Lred10b = columnarcontentdata[pindexbelow, R+1, C]
-    Lred11b = columnarcontentdata[pindexbelow, R+1, C+1]
-
-    Lredabove = (
-        Lred00a * ((R + 1 - r) * (C + 1 - c)) +
-        Lred10a * ((r - R) * (C + 1 - c)) +
-        Lred01a * ((R + 1 - r) * (c - C)) +
-        Lred11a * ((r - R) * (c - C))
-    )
-
-    if pexact == true
-        return Lredabove
-    else
-        Lredbelow = (
-            Lred00b * ((R + 1 - r) * (C + 1 - c)) +
-            Lred10b * ((r - R) * (C + 1 - c)) +
-            Lred01b * ((R + 1 - r) * (c - C)) +
-            Lred11b * ((r - R) * (c - C))
-        )
-        pslogabove = log(psannual[pindexabove])
-        pslogbelow = log(psannual[pindexbelow])
-        Lred = (Lredabove - Lredbelow) / (pslogabove - pslogbelow) * (log(p) - pslogbelow) + Lredbelow
-        return Lred
-    end
-end
-
-
-"""
     _Kₗ(f::Real, T::Real)
 
-Computes cloud specific attenuation coefficient based on Section 2. 
+Computes cloud specific attenuation coefficient based on Section 2 (Equation 2). 
     
 # Arguments
 - `f::Real`: frequency (GHz)
@@ -130,68 +71,107 @@ Computes cloud specific attenuation coefficient based on Section 2.
 """
 function _Kₗ( 
     f::Real,
-    T::Real=0.0,
+    T::Real=273.75,
 )
-    θ = 300 / (T + 273.15)     # equation 9
-    ϵ₀ = 77.66 + 103.3 * (θ - 1)     # equation 6
+    coeff = 300 / T - 1 # Term repeated in many places
+    ϵ₀ = 77.66 + 103.3 * coeff     # equation 6
     ϵ₁ = 0.0671 * ϵ₀     # equation 7
     ϵ₂ = 3.52     # equation 8
-    fₚ = 20.20 - 146 * (θ - 1) + 316 * (θ - 1) * (θ - 1)     # equation 10
+    fₚ = 20.2 - 146 * coeff + 316 * coeff^2     # equation 9
     fₛ = 39.8 * fₚ     # equation 11
 
+    rfₚ = f / fₚ
+    rfₛ = f / fₛ
     # equation 4
     ϵ′′ = (
-        ((f * (ϵ₀ - ϵ₁)) / (fₚ * (1 + (f / fₚ) * (f / fₚ))))
+        ((f * (ϵ₀ - ϵ₁)) / (fₚ * (1 + rfₚ^2)))
         +
-        ((f * (ϵ₁ - ϵ₂)) / (fₛ * (1 + (f / fₛ) * (f / fₛ))))
+        ((f * (ϵ₁ - ϵ₂)) / (fₛ * (1 + rfₛ^2)))
     )
 
     # equation 5
     ϵ′ = (
-        (ϵ₀ - ϵ₁) / (1 + (f / fₚ) * (f / fₚ))
+        (ϵ₀ - ϵ₁) / (1 + rfₚ^2)
         +
-        (ϵ₁ - ϵ₂) / (1 + (f / fₛ) * (f / fₛ))
+        (ϵ₁ - ϵ₂) / (1 + rfₛ^2)
         + ϵ₂
     )
 
 
     η = (2 + ϵ′) / ϵ′′     # equation 3
-    K = 0.819 * f / (ϵ′′ * (1 + η * η))     # equation 2
-    return K
+    Kₗ = 0.819 * f / (ϵ′′ * (1 + η^2))     # equation 2
+    return (; Kₗ, η, ϵ′′, ϵ′)
+end
+
+# This is implementing Equation 12/14
+function _K_L(f)
+    nt = _Kₗ(f, 273.75)
+    A₁ = 0.1522
+    A₂ = 11.51
+    A₃ = -10.4912
+    f₁ = -23.9589
+    f₂ = 219.2096
+    σ₁ = 3.2991e3
+    σ₂ = 2.7595e6
+    K_L = nt.Kₗ * (
+        A₁ * exp(-(f - f₁)^2 / σ₁) +
+        A₂ * exp(-(f - f₂)^2 / σ₂) +
+        A₃
+    )
+    return (; K_L, nt...)
 end
 
 #endregion internal functions
 
+"""
+    liquidwatercontent(latlon, p)
+
+Computes the integrated liquid water content at a given location and exceedance probability based on the digital annual maps in Part 1 of the Recommendation P.840-8.
+
+# Arguments
+- `latlon`: object representing latitude and longitude, must be convertible to `ItuRPropagation.LatLon`
+- `p`: exceedance probability (%)   
+"""
+function liquidwatercontent(latlon, p)
+    itp = @something(ANNUAL_DATA.ccdf,let
+        initialize!()
+        ANNUAL_DATA.ccdf
+    end)::SquareGridStatisticalData{SGD_TYPE}
+    return itp(latlon, p)
+end
 
 """
-    cloudattenuation(latlon::LatLon,  f::Real, elevation::Real, p::Real)
+    cloudattenuation(latlon, f, elevation, p)
 
 Computes annual cloud attenuation along a slant path based on Section 3. 
     
 # Arguments
-- `latlon::LatLon`: latitude and longitude (degrees)
-- `f::Real`: frequency (GHz)
-- `p::Real`: exceedance probability (%)
-- `θ::Real`: elevation angle (degrees)
+- `latlon`: object representing latitude and longitude, must be convertible to `ItuRPropagation.LatLon`
+- `f`: frequency (GHz)
+- `el`: elevation angle (degrees)
+- `p`: exceedance probability (%)
 
 # Return
 - `Acloud::Real`: slant path cloud attenuation (dB)
 """
+function cloudattenuation(latlon, f, el, p)
+    L = liquidwatercontent(latlon, p)
+    return cloudattenuation(latlon, f, el; L)
+end
 function cloudattenuation(
-    latlon::LatLon,
-    f::Real,
-    p::Real,
-    θ::Real,
+    latlon,
+    f,
+    el;
+    L
 )
+    el = _torad(el)
     # Section 3.2, equation 13
-    (θ < 5.0 || θ > 90.0) && @warn("ItuR840.cloudattenuation only supports elevation angles between 5 and 90 degrees.\nThe given elevation angle $θ degrees is outside this range.")
+    deg2rad(5) ≤ el ≤ deg2rad(90) || @warn("ItuR840.cloudattenuation only supports elevation angles between 5 and 90 degrees.\nThe given elevation angle $el degrees is outside this range.")
 
-    Lred = _columnarcontent(latlon, p)
-
-    K = _Kₗ(f)
+    (; K_L) = _K_L(f)
 
     # equation 12
-    Acloud = Lred * K / sin(deg2rad(θ))
+    Acloud = L * K_L / sin(el)
     return Acloud
 end
 

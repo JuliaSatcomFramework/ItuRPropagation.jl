@@ -6,7 +6,7 @@ temperature, surface water vapour density and integrated water vapour content re
 gaseous attenuation and related effects on terrestrial and Earth-space paths.
 =#
 
-using ..ItuRPropagation: ItuRPropagation, LatLon, ItuRVersion, ItuRP1511, ItuRP1144, _tolaton, _tokm
+using ..ItuRPropagation: ItuRPropagation, LatLon, ItuRVersion, ItuRP1511, ItuRP1144, _tolatlon, _tokm
 using Artifacts: Artifacts, @artifact_str
 
 export surfacetemperatureannual, surfacewatervapourdensityannual, surfacepressureannual, surfacewatervapourcontentannual
@@ -108,22 +108,16 @@ end
 @inline itp_inputs(latlon::LatLon) = ItuRP1144.bilinear_itp_inputs(latlon, latrange, lonrange)
 
 # This is a helper function to return indices on the pre-computed probability values to use for interpolation
-@inline function itp_inputs(p::Real)
-    prange = searchsorted(psannual, p)
-    pindexbelow = prange.stop
-    pindexabove = prange.start
-
-    (; pindexabove, pindexbelow)
-end
+@inline itp_inputs(p::Real) = ItuRP1144.ccdf_itp_inputs(p, psannual)
 
 function (nt::SingleVariableData)(latlon; alt = nothing)
-    latlon = _tolaton(latlon)
+    latlon = _tolatlon(latlon)
     alt = @something(alt, ItuRP1511.topographicheight(latlon)) |> _tokm
     (; idxs, δr, δc) = itp_inputs(latlon)
     bilinear_interpolation(nt.mean, nt.scale, nt.Z_ground, nt.scale_func, idxs, δr, δc; alt)
 end
 function (nt::SingleVariableData)(latlon, p::Real; alt = nothing)
-    latlon = _tolaton(latlon)
+    latlon = _tolatlon(latlon)
     alt = @something(alt, ItuRP1511.topographicheight(latlon)) |> _tokm
     (; idxs, δr, δc) = itp_inputs(latlon)
     (; pindexabove, pindexbelow) = itp_inputs(p)

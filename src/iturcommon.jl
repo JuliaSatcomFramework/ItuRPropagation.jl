@@ -31,7 +31,7 @@ end
 # We expects inputs in GHz
 @inline _toghz(val::Real) = val
 
-@inline _tolaton(x) = convert(LatLon, x)::LatLon # Type assertion on convert is used to help compiler, see https://github.com/JuliaLang/julia/issues/42372 for more details
+@inline _tolatlon(x) = convert(LatLon, x)::LatLon # Type assertion on convert is used to help compiler, see https://github.com/JuliaLang/julia/issues/42372 for more details
 
 Base.show(io::IO, p::LatLon) = print(io, "(", p.lat, ", ", p.lon, ")")
 

@@ -2,7 +2,7 @@ module ItuRP1144
 
 export bilinear_interpolation
 
-using ..ItuRPropagation: ItuRPropagation, LatLon, ItuRVersion
+using ..ItuRPropagation: ItuRPropagation, LatLon, ItuRVersion, _tolatlon
 
 const version = ItuRVersion("ITU-R", "P.1144", 12, "(08/2023)")
 
@@ -19,14 +19,6 @@ function bilinear_interpolation(vals::NTuple{4, Real}, δr::Real, δc::Real)
     vals[3] * (1 - δr) * δc + # R,C+1
     vals[4] * δr * δc # R+1,C+1
 end
-
-# This will perform bilinear interpolation of the points stored in `data` assuming the 4 neighboring indices are stored in `idxs` and expecting as input δr = r - R and δc = c - C, where r, R, c, C are the variables used in ITU-R P.1144-12
-# function bilinear_interpolation(data::Matrix, idxs::NTuple{4, CartesianIndex}, δr::Real, δc::Real)
-#     vals = ntuple(4) do i
-#         data[idxs[i]]
-#     end
-#     bilinear_interpolation(vals, δr, δc)
-# end
 
 # Function that takes a LatLon position and the lat and lon ranges of the grid on which to perform bilinear interpolation and returns the 4 indices of the points on the grid surrounding the target position as well as the normalized fractional row/column indices δr and δc
 @inline function bilinear_itp_inputs(latlon::LatLon, latrange::AbstractRange, lonrange::AbstractRange)
@@ -46,6 +38,53 @@ end
     )
     (; idxs, δr, δc)
 end
+
+### Helper for extracting upper and lower indices for interpolation of a single real variable, mostly used for the exceedance probability
+@inline function ccdf_itp_inputs(p::Real, pvec::AbstractVector)
+    prange = searchsorted(pvec, p)
+    pindexbelow = prange.stop
+    pindexabove = prange.start
+
+    (; pindexabove, pindexbelow)
+end
+
+### Structure for holding data for simple square grid interpolation
+abstract type AbstractSquareGridITP end
+@kwdef struct SquareGridData{T, R, NT} <: AbstractSquareGridITP
+    latrange::R
+    lonrange::R
+    data::Matrix{T} # Stores the actual data
+    id::NT # This stores any extra information
+end
+
+function (sd::SquareGridData)(idxs::NTuple{4, CartesianIndex}, δr::Real, δc::Real) 
+    vals = ntuple(4) do i
+        sd.data[idxs[i]]
+    end
+    bilinear_interpolation(vals, δr, δc)
+end
+(sd::SquareGridData)(latlon::LatLon) = sd(bilinear_itp_inputs(latlon, sd.latrange, sd.lonrange)...)
+
+struct SquareGridStatisticalData{SGD}
+    ps::Vector{Float64} # Stores the exceedance probabilities
+    items::Vector{SGD} # Stores the data
+end
+
+# This implements the square interpolation for statistical attenuations, used for P840 and P434
+function (sg::SquareGridStatisticalData)(latlon::LatLon, p; kwargs...)
+    fd = first(sg.items)
+    (; idxs, δr, δc) = bilinear_itp_inputs(latlon, fd.latrange, fd.lonrange)
+    (; pindexabove, pindexbelow) = ccdf_itp_inputs(p, sg.ps)
+    
+    above = sg.items[pindexabove](idxs, δr, δc; kwargs...)
+    pindexabove == pindexbelow && return above
+    below = sg.items[pindexbelow](idxs, δr, δc; kwargs...)
+    psabove = sg.ps[pindexabove]
+    psbelow = sg.ps[pindexbelow]
+    out = (above - below) / log(psabove/psbelow) * log(p/psbelow) + below
+    return out
+end
+
 
 ##### Bi-Cubic, Section 2 #####
 

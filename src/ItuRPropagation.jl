@@ -70,16 +70,16 @@ function attenuations(
     latlon::LatLon,
     f::Real,
     p::Real,
-    θ::Real,
+    el::Real,
     D::Real;
     η::Real=60,
-    hs::Union{Real,Missing}=missing,
+    alt = nothing,
     polarization::IturEnum=EnumCircularPolarization
 )
-    Ac = ItuRP840.cloudattenuation(latlon, f, max(1, p), θ)
-    Ag = ItuRP676.gaseousattenuation(latlon, f, max(1, p), θ, hs)
-    Ar = ItuRP618.rainattenuation(latlon, f, p, θ, polarization)
-    As = ItuRP618.scintillationattenuation(latlon, f, p, θ, D, η)
+    Ac = ItuRP840.cloudattenuation(latlon, f, el, max(1, p))
+    Ag = ItuRP676.gaseousattenuation(latlon, f, el, max(1, p); alt)
+    Ar = ItuRP618.rainattenuation(latlon, f, p, el, polarization)
+    As = ItuRP618.scintillationattenuation(latlon, f, p, el, D, η)
 
     At = Ag + sqrt((Ar + Ac)^2 + As * As)
     return (Ac=Ac, Ag=Ag, Ar=Ar, As=As, At=At)
@@ -111,11 +111,11 @@ function downlinkparameters(
     θ::Real,
     D::Real;
     η::Real=60,
-    hs::Union{Real,Missing}=missing,
+    alt = nothing,
     polarization::IturEnum=EnumCircularPolarization
 )
-    Ac = ItuRP840.cloudattenuation(latlon, f, max(1, p), θ)
-    Ag = ItuRP676.gaseousattenuation(latlon, f, max(1, p), θ, hs)
+    Ac = ItuRP840.cloudattenuation(latlon, f, θ, max(1, p))
+    Ag = ItuRP676.gaseousattenuation(latlon, f, θ, max(1, p); alt)
     Ar = ItuRP618.rainattenuation(latlon, f, p, θ, polarization)
     As = ItuRP618.scintillationattenuation(latlon, f, p, θ, D, η)
 
@@ -151,11 +151,11 @@ function uplinkparameters(
     θ::Real,
     D::Real;
     η::Real=60,
-    hs::Union{Real,Missing}=missing,
+    alt = nothing,
     polarization::IturEnum=EnumCircularPolarization
 )
-    Ac = ItuRP840.cloudattenuation(latlon, f, max(1, p), θ)
-    Ag = ItuRP676.gaseousattenuation(latlon, f, max(1, p), θ, hs)
+    Ac = ItuRP840.cloudattenuation(latlon, f, θ, max(1, p))
+    Ag = ItuRP676.gaseousattenuation(latlon, f, θ, max(1, p); alt)
     Ar = ItuRP618.rainattenuation(latlon, f, p, θ, polarization)
     As = ItuRP618.scintillationattenuation(latlon, f, p, θ, D, η)
 
@@ -193,11 +193,11 @@ function linkparameters(
     Duplink::Real,
     Ddownlink::Real;
     η::Real=60,
-    hs::Union{Real,Missing}=missing,
+    alt = nothing,
     polarization::IturEnum=EnumCircularPolarization
 )
-    Ac = ItuRP840.cloudattenuation(latlon, f, max(1, p), θ)
-    Ag = ItuRP676.gaseousattenuation(latlon, f, max(1, p), θ, hs)
+    Ac = ItuRP840.cloudattenuation(latlon, f, θ, max(1, p))
+    Ag = ItuRP676.gaseousattenuation(latlon, f, θ, max(1, p); alt)
     Ar = ItuRP618.rainattenuation(latlon, f, p, θ, polarization)
     Asuplink = ItuRP618.scintillationattenuation(latlon, f, p, θ, Duplink, η)
     Asdownlink = ItuRP618.scintillationattenuation(latlon, f, p, θ, Ddownlink, η)
