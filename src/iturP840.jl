@@ -4,7 +4,7 @@ module ItuRP840
 This Recommendation provides methods to predict the attenuation due to clouds and fog on Earth-space paths.
 =#
 
-using ..ItuRPropagation: ItuRPropagation, LatLon, ItuRVersion, _tolatlon, _tokm, _torad, SUPPRESS_WARNINGS
+using ..ItuRPropagation: ItuRPropagation, LatLon, ItuRVersion, _tolatlon, _tokm, _torad, _toghz, SUPPRESS_WARNINGS
 using ..ItuRP1144: ItuRP1144, AbstractSquareGridITP, SquareGridData, SquareGridStatisticalData
 using Artifacts: Artifacts, @artifact_str
 
@@ -162,16 +162,18 @@ function cloudattenuation(
     latlon,
     f,
     el;
-    L;
+    L,
     warn=!SUPPRESS_WARNINGS[]
 )
     el = _torad(el)
-    # Section 3.2, equation 13
-    deg2rad(5) ≤ el ≤ deg2rad(90) || !warn && @noinline(@warn("ItuR840.cloudattenuation only supports elevation angles between 5 and 90 degrees.\nThe given elevation angle $el degrees is outside this range."))
-
+    f = _toghz(f)
+    deg2rad(5) ≤ el ≤ deg2rad(90) || !warn || @noinline(@warn("ItuR840.cloudattenuation only supports elevation angles between 5 and 90 degrees.\nThe given elevation angle $el degrees is outside this range so results may be inaccurate."))
+    1 ≤ f ≤ 200 || !warn || @noinline(@warn("ItuR840.cloudattenuation only supports frequencies between 1 and 200 GHz.\nThe given frequency $f GHz is outside this range so results may be inaccurate."))
+    
+    # Section 3.2, equation 12
     (; K_L) = _K_L(f)
 
-    # equation 12
+    # equation 13
     Acloud = L * K_L / sin(el)
     return Acloud
 end

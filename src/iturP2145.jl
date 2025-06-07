@@ -6,7 +6,7 @@ temperature, surface water vapour density and integrated water vapour content re
 gaseous attenuation and related effects on terrestrial and Earth-space paths.
 =#
 
-using ..ItuRPropagation: ItuRPropagation, LatLon, ItuRVersion, ItuRP1511, ItuRP1144, _tolatlon, _tokm
+using ..ItuRPropagation: ItuRPropagation, LatLon, ItuRVersion, ItuRP1511, ItuRP1144, _tolatlon, _tokm, SUPPRESS_WARNINGS
 using Artifacts: Artifacts, @artifact_str
 
 export surfacetemperatureannual, surfacewatervapourdensityannual, surfacepressureannual, surfacewatervapourcontentannual
@@ -104,11 +104,23 @@ function initialize!(data::Matrix, kind::Symbol, filename::String)
     return nothing
 end
 
+function warnmsg_kind(::SingleVariableData{kind}) where kind
+    if kind === :T
+        "the annual surface temperature"
+    elseif kind === :RHO
+        "the annual surface water vapour density"
+    elseif kind === :P
+        "the annual surface total barometric pressure"
+    elseif kind === :V
+        "the annual surface integrated water vapour content"
+    end
+end
+
 # This is a helper function to return indices for faster interpolation using square bilinear interpolation
 @inline itp_inputs(latlon::LatLon) = ItuRP1144.bilinear_itp_inputs(latlon, latrange, lonrange)
 
 # This is a helper function to return indices on the pre-computed probability values to use for interpolation
-@inline itp_inputs(p::Real) = ItuRP1144.ccdf_itp_inputs(p, psannual)
+@inline itp_inputs(p::Real; warn, kind) = ItuRP1144.ccdf_itp_inputs(p, psannual; warn, kind)
 
 function (nt::SingleVariableData)(latlon; alt = nothing)
     latlon = _tolatlon(latlon)
@@ -116,11 +128,11 @@ function (nt::SingleVariableData)(latlon; alt = nothing)
     (; idxs, δr, δc) = itp_inputs(latlon)
     bilinear_interpolation(nt.mean, nt.scale, nt.Z_ground, nt.scale_func, idxs, δr, δc; alt)
 end
-function (nt::SingleVariableData)(latlon, p::Real; alt = nothing)
+function (nt::SingleVariableData)(latlon, p::Real; alt = nothing, warn = !SUPPRESS_WARNINGS[])
     latlon = _tolatlon(latlon)
     alt = @something(alt, ItuRP1511.topographicheight(latlon)) |> _tokm
     (; idxs, δr, δc) = itp_inputs(latlon)
-    (; pindexabove, pindexbelow) = itp_inputs(p)
+    (; pindexabove, pindexbelow) = itp_inputs(p; warn, kind = warnmsg_kind(nt))
     
     Tabove = bilinear_interpolation(nt.ccdf[pindexabove], nt.scale, nt.Z_ground, nt.scale_func, idxs, δr, δc; alt)
     pindexabove == pindexbelow && return Tabove
