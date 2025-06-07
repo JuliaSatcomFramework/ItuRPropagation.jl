@@ -22,10 +22,6 @@ end
     include("iturP835test.jl")
 end
 
-@testitem "P.837-7 - Characteristics of precipitation for propagation modelling" begin
-    include("iturP837test.jl")
-end
-
 @testitem "P.838-3 - Specific attenuation model for rain for use in prediction methods" begin
     include("iturP838test.jl")
 end

@@ -33,6 +33,13 @@ git-tree-sha1 = "a21d87acc281d70dc82ff050ad23a39e60af962b"
     sha256 = "b8e9de886d893deb902d6bd4f137d18bc74cadaa1587af61a573b0947d5ff85d"
     url = "https://github.com/JuliaSatcomFramework/ItuRPropagation.jl/releases/download/artifact_releases/p676_data.tar.gz"
 
+[p837_R001]
+git-tree-sha1 = "af135bfd08b153149d8a141fceac2783930c40f0"
+
+    [[p837_R001.download]]
+    sha256 = "771ca7196c7bbca924c67a94b5f428e7de4c9256464554b7277063eeb79e0096"
+    url = "https://github.com/JuliaSatcomFramework/ItuRPropagation.jl/releases/download/artifact_releases/p837_R001.tar.gz"
+
 [p839]
 git-tree-sha1 = "2f4c1f82dc8fd5affa973a0dd272555b65c8f1eb"
 
