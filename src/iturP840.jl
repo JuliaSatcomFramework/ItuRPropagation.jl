@@ -4,7 +4,7 @@ module ItuRP840
 This Recommendation provides methods to predict the attenuation due to clouds and fog on Earth-space paths.
 =#
 
-using ..ItuRPropagation: ItuRPropagation, LatLon, ItuRVersion, _tolatlon, _tokm, _torad
+using ..ItuRPropagation: ItuRPropagation, LatLon, ItuRVersion, _tolatlon, _tokm, _torad, _toghz, SUPPRESS_WARNINGS
 using ..ItuRP1144: ItuRP1144, AbstractSquareGridITP, SquareGridData, SquareGridStatisticalData
 using Artifacts: Artifacts, @artifact_str
 
@@ -132,12 +132,12 @@ Computes the integrated liquid water content at a given location and exceedance 
 - `latlon`: object representing latitude and longitude, must be convertible to `ItuRPropagation.LatLon`
 - `p`: exceedance probability (%)   
 """
-function liquidwatercontent(latlon, p)
+function liquidwatercontent(latlon, p; warn=!SUPPRESS_WARNINGS[])
     itp = @something(ANNUAL_DATA.ccdf,let
         initialize!()
         ANNUAL_DATA.ccdf
     end)::SquareGridStatisticalData{SGD_TYPE}
-    return itp(latlon, p)
+    return itp(latlon, p; warn, kind = "the integrated liquid water content")
 end
 
 """
@@ -154,23 +154,26 @@ Computes annual cloud attenuation along a slant path based on Section 3.
 # Return
 - `Acloud::Real`: slant path cloud attenuation (dB)
 """
-function cloudattenuation(latlon, f, el, p)
+function cloudattenuation(latlon, f, el, p; warn=!SUPPRESS_WARNINGS[])
     L = liquidwatercontent(latlon, p)
-    return cloudattenuation(latlon, f, el; L)
+    return cloudattenuation(latlon, f, el; L, warn)
 end
 function cloudattenuation(
     latlon,
     f,
     el;
-    L
+    L,
+    warn=!SUPPRESS_WARNINGS[]
 )
     el = _torad(el)
-    # Section 3.2, equation 13
-    deg2rad(5) ≤ el ≤ deg2rad(90) || @warn("ItuR840.cloudattenuation only supports elevation angles between 5 and 90 degrees.\nThe given elevation angle $el degrees is outside this range.")
-
+    f = _toghz(f)
+    deg2rad(5) ≤ el ≤ deg2rad(90) || !warn || @noinline(@warn("ItuR840.cloudattenuation only supports elevation angles between 5 and 90 degrees.\nThe given elevation angle $el degrees is outside this range so results may be inaccurate."))
+    1 ≤ f ≤ 200 || !warn || @noinline(@warn("ItuR840.cloudattenuation only supports frequencies between 1 and 200 GHz.\nThe given frequency $f GHz is outside this range so results may be inaccurate."))
+    
+    # Section 3.2, equation 12
     (; K_L) = _K_L(f)
 
-    # equation 12
+    # equation 13
     Acloud = L * K_L / sin(el)
     return Acloud
 end

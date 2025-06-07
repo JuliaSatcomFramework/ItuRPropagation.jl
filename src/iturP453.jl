@@ -7,31 +7,50 @@ Recommendation ITU-R P.453 provides methods to estimate the radio refractive ind
  parameters and their statistical variation.
 =#
 
-using ..ItuRPropagation
+using ..ItuRPropagation: ItuRPropagation, LatLon, ItuRVersion, _tolatlon, _tokm, _torad, IturEnum, EnumWater, EnumIce, SUPPRESS_WARNINGS
+using ..ItuRP1144: ItuRP1144, AbstractSquareGridITP, SquareGridData, SquareGridStatisticalData
 using Artifacts
 const version = ItuRVersion("ITU-R", "P.453", 14, "(08/2019)")
 
 #region initialization
 
-const latsize = 241 + 1 # number of latitude points (-90, 90, 0.75) plus one extra row for interpolation
-const lonsize = 481 + 1 # number of longitude points (-180, 180, 0.75) plus one extra column for interpolation
+const δlat = 0.75
+const δlon = 0.75
+const latrange = range(-90, 90, step=δlat)
+const lonrange = range(-180, 180, step=δlon)
+const datasize = (length(latrange), length(lonrange))
 
-const latvalues = [(-90.0 + (i - 1) * 0.75) for i in 1:latsize]
-const lonvalues = [(-180.0 + (j - 1) * 0.75) for j in 1:lonsize]
+# exceedance probabilities
+const psannual = [0.1, 0.2, 0.3, 0.5, 1, 2, 3, 5, 10, 20, 30, 50, 60, 70, 80, 90, 95, 99]
 
-const wettermdata_50 = zeros(Float64, (latsize, lonsize))
+# exceedance probability values for reading files
+const filespsannual = ["01", "02", "03", "05", "1", "2", "3", "5", "10", "20", "30", "50", "60", "70", "80", "90", "95", "99"]
 
-const initialized = Ref{Bool}(false)
+const SGD_TYPE = let
+    T = Float64
+    R = typeof(latrange)
+    SquareGridData{T, R, String}
+end
 
-function initialize()
-    initialized[] && return nothing
-    read!(
-        joinpath(artifact"input-maps", "wettermsurfacerefractivityannual_50_$(string(latsize))_x_$(string(lonsize)).bin"),
-        wettermdata_50
-    )
-    initialized[] = true
+# This will hold the annual ccdf data of wet term of surface refractivity for computation of the cloud attenuation. The underlying data is already a interpolator that will use bilinear interpolation to find the value at the given location
+@kwdef mutable struct WetTermData
+    ccdf::Union{Nothing, SquareGridStatisticalData{SGD_TYPE}} = nothing
+end
+
+const NWET_ANNUAL = WetTermData()
+
+function initialize!()
+    isnothing(NWET_ANNUAL.ccdf) || return nothing
+    @info "P453: Loading annual data of wet term of surface refractivity"
+    items = map(zip(psannual, filespsannual)) do (p, suffix)
+        data = read!(joinpath(artifact"p453_nwet_annual", "NWET_Annual_$(suffix).bin"), zeros(datasize))
+        name = "Wet term of surface refractivity at $p% exceedance probability"
+        SquareGridData(latrange, lonrange, data, name)
+    end
+    NWET_ANNUAL.ccdf = SquareGridStatisticalData(psannual, items)
     return nothing
 end
+
 
 #endregion initialization
 
@@ -90,37 +109,39 @@ Compute the atmospheric radio refractive index \$\\sqrt[n]{1 + x + x^2 + \\ldots
 # Arguments
 - `T::Real`: absolute temperature (°K)
 - `Pd::Real`: dry atmospheric pressure (hPa)
-- `eₛ::Real`: saturation water vapour pressure (hPa)
+- `e::Real`: saturation water vapour pressure (hPa)
 
 # Return
 - `n::Real`: atmospheric radio refractive index
 """
 function radiorefractiveindex(
-    T::Real, 
-    Pd::Real, 
-    eₛ::Real
+    T, 
+    Pd, 
+    e
 )
-    N = 77.6 * (Pd / T) + 72 * (eₛ / T) + 3.75e5 * (eₛ / (T * T))     # equation 2
+    Ndry = drytermradiorefractivity(T, Pd)
+    Nwet = wettermradiorefractivity(T, e)
+    N = Ndry + Nwet      # equation 2
     n = 1 + N * (1e-6)     # equation 1
     return n
 end
 
 
 """
-    drytermradiorefractivity(Pd::Real, T::Real)
+    drytermradiorefractivity(Pd, T)
 
 Compute the dry term of the radio refractivity based on Section 1.
 
 # Arguments
-- `T::Real`: absolute temperature (°K)
-- `Pd::Real`: dry atmospheric pressure (hPa)
+- `T`: absolute temperature (°K)
+- `Pd`: dry atmospheric pressure (hPa)
 
 # Return
-- `Ndry::Real`: dry term of the radio refractivity
+- `Ndry`: dry term of the radio refractivity
 """
 function drytermradiorefractivity(
-    T::Real, 
-    Pd::Real
+    T, 
+    Pd
 )
     Ndry = 77.6 * (Pd / T)     # equation 3
     return Ndry
@@ -133,17 +154,17 @@ end
 Compute the wet term of the radio refractivity based on Section 1.
 
 # Arguments
-- `T::Real`: absolute temperature (°K)
-- `eₛ:Real`: saturation water vapour pressure (hPa)
+- `T`: absolute temperature (°K)
+- `e`: water vapour pressure (hPa)
 
 # Return
-- `Nwet::Real`: wet term of the radio refractivity
+- `Nwet`: wet term of the radio refractivity
 """
 function wettermradiorefractivity(
-    T::Real, 
-    eₛ::Real
+    T, 
+    e
 )
-    Nwet = 72 * (eₛ / T) + 3.75e5 * (eₛ / (T * T))     # equation 4
+    Nwet = 72 * (e / T) + 3.75e5 * (e / (T * T))     # equation 4
     return Nwet
 end
 
@@ -179,37 +200,38 @@ function vapourpressure(
     return e
 end
 
-
 """
-    wettermsurfacerefractivityannual_50(latlon::LatLon)
+    wettermsurfacerefractivityannual(latlon, p)
 
-Interpolates wet term of the surface refractivity at an exceedance probability of 50% based on Section 2.2.
+Interpolates wet term of the surface refractivity at an exceedance probability `p` provided as input in % based on Section 2.2.
 
 # Arguments
-- `latlon::LatLon`: latitude and longitude (degrees)
+- `latlon`: object representing latitude and longitude, must be convertible to `ItuRPropagation.LatLon`
+- `p`: exceedance probability (%)   
 
 # Return
 - `Nwet::Real`: wet term of the surface refractivity (ppm)
 """
-function wettermsurfacerefractivityannual_50(latlon::LatLon)
-    initialize()
-    latrange = searchsorted(latvalues, latlon.lat)
-    lonrange = searchsorted(lonvalues, latlon.lon)
-    R = latrange.stop
-    C = lonrange.stop
+function wettermsurfacerefractivityannual(latlon, p::Real; warn=!SUPPRESS_WARNINGS[])
+    itp = @something(NWET_ANNUAL.ccdf,let
+        initialize!()
+        NWET_ANNUAL.ccdf
+    end)::SquareGridStatisticalData{SGD_TYPE}
+    return itp(latlon, p; warn, kind="the wet term of surface refractivity")
+end
 
-    δg = 0.75
-    r = ((latlon.lat + 90) / δg) + 1
-    c = ((latlon.lon + 180) / δg) + 1
+"""
+    wettermsurfacerefractivityannual_50(latlon)
 
-    Nwet = (
-        wettermdata_50[R, C] * ((R + 1 - r) * (C + 1 - c)) +
-        wettermdata_50[R+1, C] * ((r - R) * (C + 1 - c)) +
-        wettermdata_50[R, C+1] * ((R + 1 - r) * (c - C)) +
-        wettermdata_50[R+1, C+1] * ((r - R) * (c - C))
-    )
-
-    return Nwet
+Returns the wet term of surface refractivity at 50% exceedance probability (Based on annual data) at the desired location
+"""
+function wettermsurfacerefractivityannual_50(latlon)
+    ccdf = @something(NWET_ANNUAL.ccdf,let
+        initialize!()
+        NWET_ANNUAL.ccdf
+    end)::SquareGridStatisticalData{SGD_TYPE}
+    itp =  ccdf.items[12] # index 12 is the one corresponding to 50% exceedance probability
+    return itp(latlon)
 end
 
 end # module ItuRP453

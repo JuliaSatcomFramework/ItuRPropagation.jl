@@ -39,8 +39,17 @@ end
     (; idxs, δr, δc)
 end
 
+@inline function _checkp(p, (pmin, pmax); warn::Bool, kind::String)
+    _p = min(max(p, pmin), pmax)
+    pmin ≤ p ≤ pmax || !warn || @noinline(@warn "The provided value p = $(p)% is not supported for the interpolation of $kind, results are given for p = $(_p)%")
+    return _p
+end
+
 ### Helper for extracting upper and lower indices for interpolation of a single real variable, mostly used for the exceedance probability
-@inline function ccdf_itp_inputs(p::Real, pvec::AbstractVector)
+@inline function ccdf_itp_inputs(p::Real, pvec::AbstractVector; warn::Bool, kind::String)
+    pmin = first(pvec)
+    pmax = last(pvec)
+    p = _checkp(p, (pmin, pmax); warn, kind)
     prange = searchsorted(pvec, p)
     pindexbelow = prange.stop
     pindexabove = prange.start
@@ -71,10 +80,10 @@ struct SquareGridStatisticalData{SGD}
 end
 
 # This implements the square interpolation for statistical attenuations, used for P840 and P434
-function (sg::SquareGridStatisticalData)(latlon::LatLon, p; kwargs...)
+function (sg::SquareGridStatisticalData)(latlon::LatLon, p; warn::Bool, kind::String, kwargs...)
     fd = first(sg.items)
     (; idxs, δr, δc) = bilinear_itp_inputs(latlon, fd.latrange, fd.lonrange)
-    (; pindexabove, pindexbelow) = ccdf_itp_inputs(p, sg.ps)
+    (; pindexabove, pindexbelow) = ccdf_itp_inputs(p, sg.ps; warn, kind)
     
     above = sg.items[pindexabove](idxs, δr, δc; kwargs...)
     pindexabove == pindexbelow && return above
