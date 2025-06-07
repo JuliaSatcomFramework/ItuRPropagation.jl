@@ -12,6 +12,13 @@ git-tree-sha1 = "6aa7e553e00304fd01f89bb7a9278d1a2b4905c2"
     sha256 = "07420e6db86a41c3a8e7c6b1e89a0bb7715003d348f9b401aa68a4dd0dcb9d99"
     url = "https://github.com/JuliaSatcomFramework/ItuRPropagation.jl/releases/download/artifact_releases/p2145_2022_Part1_annual.tar.gz"
 
+[p453_nwet_annual]
+git-tree-sha1 = "f3d58fae18a5660786f5c10d0a51f3c1e9bd5ff1"
+
+    [[p453_nwet_annual.download]]
+    sha256 = "bfa0ae57a8e33316d1b473fb0fa0aff2d4c5b229c6f7808e666aecfe1ea80122"
+    url = "https://github.com/JuliaSatcomFramework/ItuRPropagation.jl/releases/download/artifact_releases/p453_nwet_annual.tar.gz"
+
 [p676]
 git-tree-sha1 = "a21d87acc281d70dc82ff050ad23a39e60af962b"
 
