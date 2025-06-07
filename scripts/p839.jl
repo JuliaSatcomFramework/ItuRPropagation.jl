@@ -47,8 +47,11 @@ function create_p839_artifact()
             data = readdlm(filecontent, '\t')
             # We have to permute over lat as we want negative latitude at the top
             data = reverse(data; dims=1)
-            # Now we want to circshift longitude as we want it from -180 to 180
-            data = circshift(data, (0, -(last(matsize) ÷ 2)))
+            # We have the raw matrix that goes from 0 to 360 lon, but we want it from -180 to 180
+            nlon = last(matsize)
+            n180 = nlon ÷ 2 # Number of indices from 0 to 180 (excluded)
+            new_idxs = [n180+1:nlon; 2:n180+1]
+            data = data[:, new_idxs]
             size(data) == matsize || error("Unexpected size: $(size(data)) instead of $matsize for file $name")
             open(binfile, "w") do io
                 write(io, data)
