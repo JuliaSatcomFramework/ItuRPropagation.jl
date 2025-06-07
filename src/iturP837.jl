@@ -15,65 +15,65 @@ When reliable long-term local rainfall rate data is available with integration t
  times that exceed 1-min to rainfall rate statistics with a 1-min integration time.
 =#
 
-using ..ItuRPropagation
+using ..ItuRPropagation: ItuRPropagation, LatLon, ItuRVersion, _tolatlon
+using ..ItuRP1144: ItuRP1144, SquareGridData
 using Artifacts
 
 const version = ItuRVersion("ITU-R", "P.837", 7, "(06/2017)")
 
+# Exports and constructor with separate latitude and longitude arguments
+for name in (:rainfallrate001,)
+    @eval $name(lat::Number, lon::Number, args...; kwargs...) = $name(LatLon(lat, lon), args...; kwargs...)
+    @eval export $name
+end
+
 #region initialization
 
-const annuallatsize = 1441 + 1 # number of latitude points (-90, 90, 0.125) plus one extra row for interpolation
-const annuallonsize = 2881 + 1 # number of longitude points (-180, 180, 0.125) plus one extra column for interpolation
+const δlat = 0.125
+const δlon = 0.125
+const latrange = range(-90, 90, step=δlat)
+const lonrange = range(-180, 180, step=δlon)
+const datasize = (length(latrange), length(lonrange))
 
-const latvaluesannual = [(-90.0 + (i - 1) * 0.125) for i in 1:annuallatsize]
-const lonvaluesannual = [(-180.0 + (j - 1) * 0.125) for j in 1:annuallonsize]
+const SGD_TYPE = let
+    T = Float64
+    R = typeof(latrange)
+    SquareGridData{T, R, String}
+end
 
-const initialized = Ref{Bool}(false)
+@kwdef mutable struct RainfallRate001
+    itp::Union{SGD_TYPE, Nothing} = nothing
+end
 
-const r001data = zeros(Float64, annuallatsize, annuallonsize)
+const R001_DATA = RainfallRate001()
 
-function initialize()
-    initialized[] && return nothing
-    read!(
-        joinpath(artifact"input-maps", "rainfallrate001annual_$(string(annuallatsize))_x_$(string(annuallonsize)).bin"),
-        r001data
-    )
-    initialized[] = true
+function initialize!()
+    data = read!(joinpath(artifact"p837_R001", "R001.bin"), zeros(datasize))
+    R001_DATA.itp = SquareGridData(latrange, lonrange, data, "Rainfall rate exceeded 0.01% of the year")
     return nothing
 end
 
 #endregion initialization
 
 """
-    rainfallrate001(latlon::LatLon)
-    rainfallrate001(lat::Float64, lon::Float64)
+    rainfallrate001(latlon)
+    rainfallrate001(lat, lon)
 
 Computes rainfall rate exceeded 0.01% via bi-linear interpolation as described in Annex 1.
 
 # Arguments
-- `latlon::LatLon`: latitude and longitude (degrees)
+- `latlon`: object representing latitude and longitude, must be convertible to `ItuRPropagation.LatLon`
 
 # Return
 - `R::Float64`: annual rainfall rate exceeded 0.01%
 """
-rainfallrate001(latlon::LatLon) = rainfallrate001(latlon.lat, latlon.lon)
-function rainfallrate001(lat, lon)
-    initialize()
-    latrange = searchsorted(latvaluesannual, lat)
-    lonrange = searchsorted(lonvaluesannual, lon)
-    R = latrange.stop
-    C = lonrange.stop
-
-    δg = 0.125
-    r = ((lat + 90) / δg) + 1
-    c = ((lon + 180) / δg) + 1
-
-    R = (
-        r001data[R, C] * ((R + 1 - r) * (C + 1 - c)) +
-        r001data[R+1, C] * ((r - R) * (C + 1 - c)) +
-        r001data[R, C+1] * ((R + 1 - r) * (c - C)) +
-        r001data[R+1, C+1] * ((r - R) * (c - C))
-    )
+function rainfallrate001(latlon)
+    latlon = _tolatlon(latlon)
+    itp = @something(R001_DATA.itp, let
+        initialize!()
+        R001_DATA.itp
+    end)::SGD_TYPE
+    return itp(latlon)
 end
 
 end # module ItuRP837

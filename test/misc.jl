@@ -48,6 +48,9 @@ end
     ###### P676 ######
     @test ItuRP676.gaseousattenuation(lls..., f, el, p) == ItuRP676.gaseousattenuation(ll, f, el, p)
 
+    ###### P837 ######
+    @test ItuRP837.rainfallrate001(lls...) == ItuRP837.rainfallrate001(ll)
+
     ###### P839 ######
     @test ItuRP839.isothermheight(lls...) == ItuRP839.isothermheight(ll)
     @test ItuRP839.rainheightannual(lls...) == ItuRP839.rainheightannual(ll)
