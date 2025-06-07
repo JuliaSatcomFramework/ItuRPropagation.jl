@@ -218,7 +218,7 @@ Interpolates wet term of the surface refractivity at an exceedance probability `
 # Return
 - `Nwet::Real`: wet term of the surface refractivity (ppm)
 """
-function wettermsurfacerefractivityannual(latlon, p::Real; warn=!SUPPRESS_WARNINGS[])
+function wettermsurfacerefractivityannual(latlon, p; warn=!SUPPRESS_WARNINGS[])
     itp = @something(NWET_ANNUAL.ccdf,let
         initialize!()
         NWET_ANNUAL.ccdf
