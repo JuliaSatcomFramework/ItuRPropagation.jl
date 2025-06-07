@@ -26,19 +26,19 @@ git-tree-sha1 = "f3d58fae18a5660786f5c10d0a51f3c1e9bd5ff1"
     sha256 = "bfa0ae57a8e33316d1b473fb0fa0aff2d4c5b229c6f7808e666aecfe1ea80122"
     url = "https://github.com/JuliaSatcomFramework/ItuRPropagation.jl/releases/download/artifact_releases/p453_nwet_annual.tar.gz"
 
-[p839]
-git-tree-sha1 = "bb37711b3401b9462872241e4b9e17059827b513"
-
-    [[p839.download]]
-    sha256 = "9d81e0bdd35311a81669e9682a4826a64d0d77820978ce13796506ed6b69443e"
-    url = "https://github.com/JuliaSatcomFramework/ItuRPropagation.jl/releases/download/artifact_releases/p839.tar.gz"
-
 [p676]
 git-tree-sha1 = "a21d87acc281d70dc82ff050ad23a39e60af962b"
 
     [[p676.download]]
     sha256 = "b8e9de886d893deb902d6bd4f137d18bc74cadaa1587af61a573b0947d5ff85d"
     url = "https://github.com/JuliaSatcomFramework/ItuRPropagation.jl/releases/download/artifact_releases/p676_data.tar.gz"
+
+[p839]
+git-tree-sha1 = "2f4c1f82dc8fd5affa973a0dd272555b65c8f1eb"
+
+    [[p839.download]]
+    sha256 = "c90a691aa7174171fd5707fa908a9db7a3d80d00dea39fba579fc299d33a846d"
+    url = "https://github.com/JuliaSatcomFramework/ItuRPropagation.jl/releases/download/artifact_releases/p839.tar.gz"
 
 [p840_annual]
 git-tree-sha1 = "4c0426c8ad13e4007c2f63312b77356d0608d2ef"
