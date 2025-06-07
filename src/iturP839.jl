@@ -9,6 +9,12 @@ using ..ItuRP1144: ItuRP1144, AbstractSquareGridITP, SquareGridData, SquareGridS
 using Artifacts
 const version = ItuRVersion("ITU-R", "P.839", 4, "(09/2013)")
 
+# Exports and constructor with separate latitude and longitude arguments
+for name in (:isothermheight, :rainheightannual)
+    @eval $name(lat::Number, lon::Number, args...; kwargs...) = $name(LatLon(lat, lon), args...; kwargs...)
+    @eval export $name
+end
+
 #region initialization
 
 const δlat = 1.5

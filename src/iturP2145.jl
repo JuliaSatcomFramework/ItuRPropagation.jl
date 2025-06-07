@@ -9,7 +9,11 @@ gaseous attenuation and related effects on terrestrial and Earth-space paths.
 using ..ItuRPropagation: ItuRPropagation, LatLon, ItuRVersion, ItuRP1511, ItuRP1144, _tolatlon, _tokm, SUPPRESS_WARNINGS
 using Artifacts: Artifacts, @artifact_str
 
-export surfacetemperatureannual, surfacewatervapourdensityannual, surfacepressureannual, surfacewatervapourcontentannual
+# Exports and constructor with separate latitude and longitude arguments
+for name in (:surfacetemperatureannual, :surfacewatervapourdensityannual, :surfacepressureannual, :surfacewatervapourcontentannual)
+    @eval $name(lat::Number, lon::Number, args...; kwargs...) = $name(LatLon(lat, lon), args...; kwargs...)
+    @eval export $name
+end
 
 const version = ItuRVersion("ITU-R", "P.2145", 0, "(08/2022)")
 
@@ -290,8 +294,5 @@ function _annual_surface_values(latlon, args...; alt = nothing)
     ρ = surfacewatervapourdensityannual(latlon, args...; alt)
     return (; P, T, ρ, alt)
 end
-
-
-
 
 end # module ItuRP2145

@@ -10,6 +10,12 @@ using Artifacts: Artifacts, @artifact_str
 
 const version = ItuRVersion("ITU-R", "P.840", 9, "(08/2023)")
 
+# Exports and constructor with separate latitude and longitude arguments
+for name in (:liquidwatercontent, :cloudattenuation)
+    @eval $name(lat::Number, lon::Number, args...; kwargs...) = $name(LatLon(lat, lon), args...; kwargs...)
+    @eval export $name
+end
+
 #region initialization
 
 const δlat = 0.25

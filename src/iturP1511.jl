@@ -9,6 +9,12 @@ using ..ItuRPropagation
 using Artifacts
 const version = ItuRVersion("ITU-R", "P.1511", 3, "(08/2023)")
 
+# Exports and constructor with separate latitude and longitude arguments
+for name in (:topographicheight,)
+    @eval $name(lat::Number, lon::Number, args...; kwargs...) = $name(LatLon(lat, lon), args...; kwargs...)
+    @eval export $name
+end
+
 #region initialization
 
 const GRID_DATA = (;
@@ -32,7 +38,7 @@ const GRID_DATA = (;
 
 """
     topographicheight(latlon::LatLon)
-    topographicheight(lat::Float64, lon::Float64)
+    topographicheight(lat, lon)
 
 Calculates topographic height as per Section 1.1 of ITU-R P.1511-3.
 
@@ -42,7 +48,6 @@ Calculates topographic height as per Section 1.1 of ITU-R P.1511-3.
 # Return
 - `I::Real`: height (km)
 """
-topographicheight(lat, lon) = topographicheight(LatLon(lat, lon))
 function topographicheight(latlon::LatLon)
     grid_data = GRID_DATA.topo
     alt = ItuRP1144.bicubic_interpolation(grid_data.data, latlon, grid_data.latrange, grid_data.lonrange) / 1e3
