@@ -5,6 +5,8 @@ export EnumHeightAndIndex, EnumIndexOnly
 export EnumHorizontalPolarization, EnumVerticalPolarization, EnumCircularPolarization
 export ItuRVersion
 
+const SUPPRESS_WARNINGS = Ref(false)
+
 struct LatLon
     lat::Float64
     lon::Float64
