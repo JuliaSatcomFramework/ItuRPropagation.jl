@@ -4,49 +4,43 @@ module ItuRP839
 This Recommendation provides a method to predict the rain height for propagation prediction.
 =#
 
-using ..ItuRPropagation
+using ..ItuRPropagation: ItuRPropagation, LatLon, ItuRVersion, _tolatlon, _tokm, _torad, _toghz, SUPPRESS_WARNINGS
+using ..ItuRP1144: ItuRP1144, AbstractSquareGridITP, SquareGridData, SquareGridStatisticalData
 using Artifacts
 const version = ItuRVersion("ITU-R", "P.839", 4, "(09/2013)")
 
+# Exports and constructor with separate latitude and longitude arguments
+for name in (:isothermheight, :rainheightannual)
+    @eval $name(lat::Number, lon::Number, args...; kwargs...) = $name(LatLon(lat, lon), args...; kwargs...)
+    @eval export $name
+end
+
 #region initialization
 
-const latsize = 121 + 1 # number of latitude points (-90, 90, 0.75) plus one extra row for interpolation
-const lonsize = 241 + 1 # number of longitude points (-180, 180, 0.75) plus one extra column for interpolation
+const δlat = 1.5
+const δlon = 1.5
+const latrange = range(-90, 90, step=δlat)
+const lonrange = range(-180, 180, step=δlon)
+const datasize = (length(latrange), length(lonrange))
 
-const latvalues = [(-90.0 + (i - 1) * 1.5) for i in 1:latsize]
-const lonvalues = [(-180.0 + (j - 1) * 1.5) for j in 1:lonsize]
-
-const initialized = Ref{Bool}(false)
-
-const isothermheightdata = zeros(Float64, latsize, lonsize)
-
-function initialize()
-    initialized[] && return nothing
-    read!(
-        joinpath(artifact"input-maps", "isothermheighth0annual_$(string(latsize))_x_$(string(lonsize)).bin"),
-        isothermheightdata
-    )
-    initialized[] = true
-    return nothing
-end
+const H0_DATA = SquareGridData(latrange, lonrange, read!(joinpath(artifact"p839", "h0.bin"), zeros(datasize)), "Isotherm height")
 
 #endregion initialization
 
 """
     rainheightannual(latlon::LatLon)
-    rainheightannual(lat::Real, lon::Real)
 
 Computes rain height based on the equation in Section 2.
 h0 will be interpolated for the given latitude and longitude.
 
 # Arguments
-- `latlon::LatLon`: latitude and longitude (degrees)
+- `latlon`: object representing latitude and longitude, must be convertible to `ItuRPropagation.LatLon`
 
 # Return
-- `hR::Real`: mean annual rain height above mean sea level
+- `hR`: mean annual rain height (km) above mean sea level
 """
-function rainheightannual(args...)
-    h0 = isothermheight(args...)
+function rainheightannual(latlon)
+    h0 = isothermheight(latlon)
 
     hR = h0 + 0.36  # equation in section 2
     return hR
@@ -54,37 +48,20 @@ end
 
 
 """
-    isothermheight(latlon::LatLon)
-    isothermheight(lat::Real, lon::Real)
+    isothermheight(latlon)
 
 Calculates isothermic height based on bilinear interpolation.
 h0 will be interpolated for the given latitude and longitude.
 
 # Arguments
-- `latlon::LatLon`: latitude and longitude (degrees)
+- `latlon`: object representing latitude and longitude, must be convertible to `ItuRPropagation.LatLon`
 
 # Return
-- `h0::Real`: mean annual 0°C isotherm height above mean sea level
+- `h0`: mean annual 0°C isotherm height (km) above mean sea level
 """
-isothermheight(latlon::LatLon) = isothermheight(latlon.lat, latlon.lon)
-function isothermheight(lat, lon)
-    initialize()
-    latrange = searchsorted(latvalues, lat)
-    lonrange = searchsorted(lonvalues, lon)
-    R = latrange.stop
-    C = lonrange.stop
-
-    r = ((lat + 90) / 1.5) + 1
-    c = ((lon + 180) / 1.5) + 1
-
-    h0 = (
-        isothermheightdata[R, C] * ((R + 1 - r) * (C + 1 - c)) +
-        isothermheightdata[R+1, C] * ((r - R) * (C + 1 - c)) +
-        isothermheightdata[R, C+1] * ((R + 1 - r) * (c - C)) +
-        isothermheightdata[R+1, C+1] * ((r - R) * (c - C))
-    )
-
-    return h0
+function isothermheight(latlon)
+    latlon = _tolatlon(latlon)
+    return H0_DATA(latlon)
 end
 
 end # module ItuRP839

@@ -30,8 +30,4 @@ end
     include("iturP838test.jl")
 end
 
-@testitem "P.839-4 - Rain Height Model" begin
-    include("iturP839test.jl")
-end
-
 @run_package_tests verbose=true

@@ -43,7 +43,7 @@ the receiver to the spacecraft transmitter.
 - `Tsky::Real`: sky noise temperature at a ground station antenna (°K)
 """
 function earthstationnoisetemperature(
-    latlon::LatLon,
+    latlon,
     p::Real,
     A::Real
 )

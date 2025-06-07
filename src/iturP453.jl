@@ -12,6 +12,12 @@ using ..ItuRP1144: ItuRP1144, AbstractSquareGridITP, SquareGridData, SquareGridS
 using Artifacts
 const version = ItuRVersion("ITU-R", "P.453", 14, "(08/2019)")
 
+# Exports and constructor with separate latitude and longitude arguments
+for name in (:wettermsurfacerefractivityannual, :wettermsurfacerefractivityannual_50)
+    @eval $name(lat::Number, lon::Number, args...; kwargs...) = $name(LatLon(lat, lon), args...; kwargs...)
+    @eval export $name
+end
+
 #region initialization
 
 const δlat = 0.75
@@ -212,7 +218,7 @@ Interpolates wet term of the surface refractivity at an exceedance probability `
 # Return
 - `Nwet::Real`: wet term of the surface refractivity (ppm)
 """
-function wettermsurfacerefractivityannual(latlon, p::Real; warn=!SUPPRESS_WARNINGS[])
+function wettermsurfacerefractivityannual(latlon, p; warn=!SUPPRESS_WARNINGS[])
     itp = @something(NWET_ANNUAL.ccdf,let
         initialize!()
         NWET_ANNUAL.ccdf

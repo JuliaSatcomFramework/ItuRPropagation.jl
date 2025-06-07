@@ -24,7 +24,11 @@ using ..ItuRPropagation: _torad, ItuRP835, ItuRP453, ItuRVersion, ItuRP1511, Lat
 using Artifacts
 const version = ItuRVersion("ITU-R", "P.676", 13, "(08/2022)")
 
-export gaseousattenuation
+# Exports and constructor with separate latitude and longitude arguments
+for name in (:gaseousattenuation,)
+    @eval $name(lat::Number, lon::Number, args...; kwargs...) = $name(LatLon(lat, lon), args...; kwargs...)
+    @eval export $name
+end
 
 #region coefficients
 
