@@ -20,7 +20,7 @@ function create_p453_nwet_annual_artifact()
             lonres = 0.75
 
             latrange = range(-90, 90, step=latres)
-            lonrange = range(0, 360, step=lonres)
+            lonrange = range(-180, 180, step=lonres)
 
             matsize = (length(latrange), length(lonrange))
 
