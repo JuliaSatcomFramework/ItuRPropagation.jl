@@ -6,7 +6,7 @@ function create_p837_R001_artifact()
 
     if isnothing(_artifact_hash) || !Artifacts.artifact_exists(_artifact_hash)
         _artifact_hash = Artifacts.create_artifact() do artifact_folder
-            # This is the URL for direct download of the zip file containing the components of the ITU-R P.453-14 recommendation
+            # This is the URL for direct download of the zip file containing the components of the ITU-R P.837-7 recommendation
             url = "https://www.itu.int/dms_pubrec/itu-r/rec/p/R-REC-P.837-7-201706-I!!ZIP-E.zip"
 
             zip_path = joinpath(downloads_dir, "p837_R001.zip")
