@@ -5,13 +5,13 @@ This Recommendation predicts the various propagation parameters needed in planni
 systems operating in either the Earth-to-space or space-to-Earth direction.
 =#
 
-using ..ItuRPropagation: ItuRPropagation, LatLon, ItuRVersion, _tolatlon, _tokm, _todeg, _toghz, SUPPRESS_WARNINGS, IturEnum, tilt_from_polarization, _validel
+using ..ItuRPropagation: ItuRPropagation, LatLon, ItuRVersion, _tolatlon, _tokm, _todeg, _toghz, SUPPRESS_WARNINGS, IturEnum, tilt_from_polarization, _validel, ItuRP840, ItuRP676, ItuRP453, ItuRP838, ItuRP837, ItuRP1511, ItuRP839, EnumCircularPolarization
 using Artifacts
 
 const version = ItuRVersion("ITU-R", "P.618", 14, "(08/2023)")
 
 # Exports and constructor with separate latitude and longitude arguments
-for name in (:scintillationattenuation, :rainattenuation)
+for name in (:scintillationattenuation, :rainattenuation, :attenuations)
     @eval $name(lat::Number, lon::Number, args...; kwargs...) = $name(LatLon(lat, lon), args...; kwargs...)
     @eval export $name
 end
@@ -19,19 +19,20 @@ end
 const Rₑ = 8500 # effective radius of the Earth (km)
 
 """
-    scintillationattenuation(latlon::LatLon, f::Real, p::Real, θ::Real, D::Real, η::Real=60.0, hL::Real=1000.0)
+    scintillationattenuation(latlon::LatLon, f::Real, el::Real, p::Real; D::Real=1.0, η::Real=60.0)
 
 Computes scintillation attenuation based on Section 2.4.1.
     
 # Arguments
-- `latlon::LatLon`: latitude and longitude (degrees)
+- `latlon`: object representing latitude and longitude, must be convertible to `ItuRPropagation.LatLon`
 - `f::Real`: frequency (GHz)
-- `θ::Real`: elevation angle (degrees)
+- `el::Real`: elevation angle (degrees)
 - `p::Real`: exceedance probability (%)
 
 # Keyword Arguments
 - `D::Real=1.0`: antenna diameter (m)
 - `η::Real=60`: antenna efficiency (% from 0 to 100, typically 60). Can also be provided with the name `efficiency`.
+- `warn`: Whether to warn if the inputs are outside the supported range. Defaults to `!SUPPRESS_WARNINGS[]`
 
 # Return
 - `Ascintillation::Real`: scintillation attenuation (dB)
@@ -49,14 +50,13 @@ function scintillationattenuation(
     return As
 end
 
-function _scintillationattenuation(latlon, f, el, p; D, η, Nwet = nothing, warn=!SUPPRESS_WARNINGS[])
+function _scintillationattenuation(latlon, f, el, p; D, η, Nwet = nothing, warn=!SUPPRESS_WARNINGS[], ignore_pwarn = false)
     # We don't process latlon as that is only used in another function that does that
     
     # Inputs checks
     (4 ≤ f ≤ 55) || !warn || @noinline(@warn("ItuR618.scintillationattenuation only supports frequencies between 4 and 55 GHz.\nThe given frequency $f GHz is outside this range. The result may be inaccurate."))
-    (0.01 ≤ p ≤ 50) || !warn || @noinline(@warn("ItuR618.scintillationattenuation only supports exceedance probabilities between 0.01% and 50%.\nThe given exceedance probability $p% is outside this range. The result may be inaccurate."))
-    # list of parameters in Section 2.4.1
-    _validel(el)
+    (0.01 ≤ p ≤ 50) || ignore_pwarn || !warn || @noinline(@warn("ItuR618.scintillationattenuation only supports exceedance probabilities between 0.01% and 50%.\nThe given exceedance probability $p% is outside this range. The result may be inaccurate."))
+    _validel(el) # Check that elevation is between 0 and 90 degrees
     (5 ≤ el) || !warn || @noinline(@warn("ItuR618.scintillationattenuation only supports elevation angles between 5 and 90 degrees.\nThe given elevation angle $el degrees is outside this range. The result may be inaccurate."))
     
     # step 2
@@ -204,6 +204,96 @@ function _rainattenuation(latlon, f, el, p; polarization_angle = nothing, alt = 
     out = (; Aₚ, Lₛ, Lg, Lᵣ, v001, A001, β, hᵣ, Lₑ, γᵣ, r001, R001)
 
     return out
+end
+
+function _combine_attenuations(; Ac::Real, Ag::Real, Ar::Real, As::Real)
+    At = Ag + sqrt((Ar + Ac)^2 + As^2)
+    return (; At, Ac, Ag, Ar, As)
+end
+
+"""
+    attenuations(latlon, f, el, p; D, η, alt, polarization, polarization_angle, warn)
+
+Computes the various attenuations for earth/space links based on Section 2.4.1 of ITU-R P618-13.
+    
+# Arguments
+- `latlon`: object representing latitude and longitude, must be convertible to `ItuRPropagation.LatLon`
+- `f`: frequency (GHz)
+- `el`: elevation angle (degrees)
+- `p`: exceedance probability (%)
+
+# Keyword Arguments
+- `D`: antenna diameter (m)
+- `η`: antenna efficiency (% from 0 to 100, defaults to 60). **Note: This can also be provided with the name `efficiency`**
+- `alt`: altitude of ground station (km). Defaults to `ItuRP1511.topographicheight(latlon)`
+- `polarization`: polarization (EnumHorizontalPolarization, EnumVerticalPolarization, or EnumCircularPolarization)
+- `polarization_angle`: tilt angle [degrees] of the electric field polarization w.r.t. horizontal polarization.
+  - Note: This field is computed from the `polarization` argument if not provided, and disregards the `polarization` argument if explicitly provided.
+- `warn`: Whether to warn if the inputs are outside the supported range. Defaults to `!SUPPRESS_WARNINGS[]`
+
+# Return
+- `(Ac=Ac, Ag=Ag, Ar=Ar, As=As, At=At)`: cloud, gas, rain, scintillation, total attenuations (dB)
+"""
+function attenuations(
+    latlon, f, el, p;
+    D,
+    efficiency = 60, η=efficiency,
+    alt = nothing,
+    polarization::IturEnum=EnumCircularPolarization,
+    polarization_angle = tilt_from_polarization(polarization),
+    warn=!SUPPRESS_WARNINGS[],
+)
+    latlon = _tolatlon(latlon)
+    el = _todeg(el)
+    f = _toghz(f)
+    _validel(el) # Validate input elevation
+    (; attenuations) = _attenuations(latlon, f, el, p; D, η, polarization_angle, alt, warn)
+    return attenuations
+end
+
+function _attenuations(latlon, f, el, p;
+    D,
+    Ag_zenith = nothing,
+    Ac_zenith = nothing,
+    η = 60,
+    polarization_angle = nothing,
+    alt = nothing,
+    Nwet = nothing,
+    R001 = nothing,
+    hᵣ = nothing,
+    warn=!SUPPRESS_WARNINGS[],
+)
+    # Check the positional arguments ranges
+    5 ≤ el ≤ 90 || !warn || @noinline(@warn("ItuR840.cloudattenuation only supports elevation angles between 5 and 90 degrees.\nThe given elevation angle $el degrees is outside this range so results may be inaccurate."))
+
+    # Extract altitude
+    alt = @something(alt, ItuRP1511.topographicheight(latlon)) |> _tokm
+    # Default polarization angle to 45 (circular)
+    polarization_angle = @something(polarization_angle, 45) |> _todeg
+    # Extract the zenith gaseous attenuation
+    Ag_zenith = @something(Ag_zenith, ItuRP676.gaseousattenuation(latlon, f, 90, max(5, p); alt))
+    # Extract the zenith cloud attenuation
+    Ac_zenith = @something(Ac_zenith, ItuRP840.cloudattenuation(latlon, f, 90, max(5, p); warn))
+
+    # Get the scintillation attenuation
+    (; As, Nwet) = _scintillationattenuation(latlon, f, el, p; D, η, Nwet, warn, ignore_pwarn = p < 0.01) # We ignore pwarning because we might have values below 0.01%
+
+    (; Aₚ, hᵣ, R001) = if p ≤ 5 
+        _rainattenuation(latlon, f, el, p; polarization_angle, alt, hᵣ, R001, warn)
+    else
+        hᵣ = @something(hᵣ, ItuRP839.rainheightannual(latlon)) |> _tokm
+        R001 = @something(R001, ItuRP837.rainfallrate001(latlon))
+        (; Aₚ = 0.0, hᵣ, R001)
+    end
+
+    sinθ = sin(el |> deg2rad) # For clouds and gas we start from zenith values
+    Ac = Ac_zenith / sinθ
+    Ag = Ag_zenith / sinθ
+
+    attenuations = _combine_attenuations(; Ac, Ag, Ar = Aₚ, As)
+    kwargs = (; Ac_zenith, Ag_zenith, polarization_angle, alt, D, η, Nwet, R001, hᵣ)
+
+    return (; attenuations, kwargs, inps = (; latlon, f, el, p))
 end
 
 end # module ItuRP618
