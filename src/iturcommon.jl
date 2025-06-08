@@ -35,6 +35,8 @@ end
 
 @inline _tolatlon(x) = convert(LatLon, x)::LatLon # Type assertion on convert is used to help compiler, see https://github.com/JuliaLang/julia/issues/42372 for more details
 
+@inline _validel(el::Real) = (0 ≤ el ≤ 90) || @noinline(throw(ArgumentError("Elevation angles must be provided between 0 and 90 degrees.\nThe given elevation angle ($el degrees) is not a valid input.")))
+
 Base.show(io::IO, p::LatLon) = print(io, "(", p.lat, ", ", p.lon, ")")
 
 @enum IturEnum begin
