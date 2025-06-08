@@ -5,10 +5,16 @@ This Recommendation predicts the various propagation parameters needed in planni
 systems operating in either the Earth-to-space or space-to-Earth direction.
 =#
 
-using ..ItuRPropagation: ItuRPropagation, LatLon, ItuRVersion, _tolatlon, _tokm, _todeg, _toghz, SUPPRESS_WARNINGS, IturEnum, tilt_from_polarization
+using ..ItuRPropagation: ItuRPropagation, LatLon, ItuRVersion, _tolatlon, _tokm, _todeg, _toghz, SUPPRESS_WARNINGS, IturEnum, tilt_from_polarization, _validel
 using Artifacts
 
 const version = ItuRVersion("ITU-R", "P.618", 14, "(08/2023)")
+
+# Exports and constructor with separate latitude and longitude arguments
+for name in (:scintillationattenuation, :rainattenuation)
+    @eval $name(lat::Number, lon::Number, args...; kwargs...) = $name(LatLon(lat, lon), args...; kwargs...)
+    @eval export $name
+end
 
 const Rₑ = 8500 # effective radius of the Earth (km)
 
@@ -50,7 +56,8 @@ function _scintillationattenuation(latlon, f, el, p; D, η, Nwet = nothing, warn
     (4 ≤ f ≤ 55) || !warn || @noinline(@warn("ItuR618.scintillationattenuation only supports frequencies between 4 and 55 GHz.\nThe given frequency $f GHz is outside this range. The result may be inaccurate."))
     (0.01 ≤ p ≤ 50) || !warn || @noinline(@warn("ItuR618.scintillationattenuation only supports exceedance probabilities between 0.01% and 50%.\nThe given exceedance probability $p% is outside this range. The result may be inaccurate."))
     # list of parameters in Section 2.4.1
-    (5 ≤ el ≤ 90) || !warn || @noinline(@warn("ItuR618.scintillationattenuation only supports elevation angles between 5 and 90 degrees.\nThe given elevation angle $el degrees is outside this range. The result may be inaccurate."))
+    _validel(el)
+    (5 ≤ el) || !warn || @noinline(@warn("ItuR618.scintillationattenuation only supports elevation angles between 5 and 90 degrees.\nThe given elevation angle $el degrees is outside this range. The result may be inaccurate."))
     
     # step 2
     Nwet = @something(Nwet, ItuRP453.wettermsurfacerefractivityannual_50(latlon))
@@ -108,9 +115,12 @@ Computes rain attenuation based on Section 2.2.1.1.
 - `polarization::IturEnum=EnumCircularPolarization`: polarization (EnumHorizontalPolarization, EnumVerticalPolarization, or EnumCircularPolarization) 
   - Note that this last argument is overridden by the keyword argument `polarization_angle` if provided
 - `polarization_angle`: Tilt angle [degrees] of the electric field polarization w.r.t. horizontal polarization. Defaults to 45, corresponding to a circularly polarized field.
+- `alt`: Altitude [km] of the receiver. Defaults to `ItuRP1511.topographicheight(latlon)`
+- `R001`: Annual rain rate [mm/h] exceeded 0.01% of the time. Defaults to `ItuRP837.rainfallrate001(latlon)`
+- `warn`: Whether to warn if the inputs are outside the supported range. Defaults to `!SUPPRESS_WARNINGS[]`
 
 # Return
-- `Aₚ::Float64`: rain attenuation (dB)
+- `Ap::Float64`: rain attenuation (dB)
 """
 function rainattenuation(
     latlon,
@@ -120,30 +130,30 @@ function rainattenuation(
     polarization::IturEnum=EnumCircularPolarization,
     polarization_angle = tilt_from_polarization(polarization),
     alt = nothing,
-    warn=!SUPPRESS_WARNINGS[],
     hr = nothing, hᵣ = hr,
     R001 = nothing,
+    warn=!SUPPRESS_WARNINGS[],
 )
     # Inputs Processing
+    latlon = _tolatlon(latlon)
     el = _todeg(el)
     f = _toghz(f)
 
-    # Inputs checks
-    # first paragraph of 2.2.1.1
-    (1 ≤ f ≤ 55) || !warn || @noinline(@warn("ItuR618.rainattenuation only supports frequencies between 1 and 55 GHz.\nThe given frequency $f GHz is outside this range. The result may be inaccurate."))
-    
-    # per step 10
-    (0.001 ≤ p ≤ 5) || !warn || @noinline(@warn("ItuR618.rainattenuation only supports exceedance probabilities between 0.001% and 5%.\nThe given exceedance probability $p% is outside this range."))
-    (; Aₚ) = _rainattenuation(latlon, f, el, p; polarization_angle, alt, hᵣ, R001)
+    (; Aₚ) = _rainattenuation(latlon, f, el, p; polarization_angle, alt, hᵣ, R001, warn)
     return Aₚ
 end
 
-function _rainattenuation(latlon, f, el, p; polarization_angle = nothing, alt = nothing, hᵣ = nothing, R001 = nothing)
+function _rainattenuation(latlon, f, el, p; polarization_angle = nothing, alt = nothing, hᵣ = nothing, R001 = nothing, warn=!SUPPRESS_WARNINGS[])
     # Inputs Processing
-    hᵣ = @something(hᵣ, ItuRP839.rainheightannual(latlon))
-    alt = @something(alt, ItuRP1511.topographicheight(latlon))
-    polarization_angle = @something(polarization_angle, 45)
+    hᵣ = @something(hᵣ, ItuRP839.rainheightannual(latlon)) |> _tokm
+    alt = @something(alt, ItuRP1511.topographicheight(latlon)) |> _tokm
+    polarization_angle = @something(polarization_angle, 45) |> _todeg
     R001 = @something(R001, ItuRP837.rainfallrate001(latlon))
+
+    # Inputs checks
+    (1 ≤ f ≤ 55) || !warn || @noinline(@warn("ItuR618.rainattenuation only supports frequencies between 1 and 55 GHz.\nThe given frequency $f GHz is outside this range. The result may be inaccurate."))
+    (0.001 ≤ p ≤ 5) || !warn || @noinline(@warn("ItuR618.rainattenuation only supports exceedance probabilities between 0.001% and 5%.\nThe given exceedance probability $p% is outside this range. The result may be inaccurate."))
+    _validel(el) # Check that elevation is between 0 and 90 degrees
 
     # We define the early exit output
     early_out = (; Aₚ = 0.0, Lₛ = NaN, Lg = NaN, Lᵣ = NaN, v001 = NaN, A001 = NaN, β = NaN, hᵣ, Lₑ = NaN, γᵣ = NaN, r001 = NaN, R001)
@@ -194,151 +204,6 @@ function _rainattenuation(latlon, f, el, p; polarization_angle = nothing, alt = 
     out = (; Aₚ, Lₛ, Lg, Lᵣ, v001, A001, β, hᵣ, Lₑ, γᵣ, r001, R001)
 
     return out
-end
-
-
-"""
-    raindiversitygain(f::Real, θ::Real, d::Real, A::Real, Ψ::Real)
-
-Computes rain diversity gain based on Section 2.2.4.2.
-    
-# Arguments
-- `f::Real`: frequency (GHz)
-- `θ::Real`: path elevation angle (degrees)
-- `d::Real`: separation between the two sites (km)
-- `A::Real`: path rain attenuation for a single site (dB)
-- `Ψ::Real`: angle made by azimuth of propagation path with respect to the baseline between sites,
-             chosen such that Ψ <= 90 (degrees)
-
-             # Return
-- G::Real`: net diversity gain (dB)
-"""
-function raindiversitygain(
-   f::Real,
-   θ::Real,
-   d::Real,
-   A::Real,
-   Ψ::Real
-)
-    # first paragraph of 2.2.4.2
-    (d < 0 || d > 20) && @warn("ItuR618.raindiversitygain only supports site separations between 1 and 20 km.\nThe given site separation $d km is outside this range.")
-    
-    # step 1
-    a = 0.78*A - 1.94*(1-exp(-0.11*A))
-    b = 0.59*(1-exp(-0.1*A))
-    Gd = a*(1 - exp(-b*d))     # equation 35
-
-    # step 2
-    Gf = exp(-0.025*f)     # equation 36
-
-    # step 3
-    Gθ = 1 + 0.006 * θ     # equation 37
-
-    # step 4
-    GΨ = 1 + 0.002 * Ψ     # equation 38
-
-    # step 5
-    G = Gd * Gf * Gθ * GΨ     # equation 39
-    return G
-end
-
-"""
-    crosspolarizationdiscrimination(f::Real, p::Real, θ::Real, Aᵣ::Real, polarization::IturEnum=EnumCircularPolarization)
-
-Computes cross-polarization discrimination based on Section 4.1.
-    
-# Arguments
-- `f::Real`: frequency (GHz)
-- `p::Real`: exceedance probability (%)
-- `θ::Real`: path elevation angle (degrees)
-- `Aᵣ::Real`: rain attenuation (dB)
-- `polarization::IturEnum=EnumCircularPolarization`: polarization (EnumHorizontalPolarization, EnumVerticalPolarization, or EnumCircularPolarization)
-
-# Return
-- `XPD::Real`: cross polarization discrimination from rain attenuation statistics (dB)
-"""
-function crosspolarizationdiscrimination(
-    f::Real,
-    p::Real,
-    θ::Real,
-    Aᵣ::Real,
-    polarization::IturEnum=EnumCircularPolarization
-)
-    # first paragraph of 4.1
-    (f < 4 || f > 55) && @warn("ItuR618.crosspolarizationdiscrimination only supports frequencies between 4 and 55 GHz.\nThe given frequency $f GHz is outside this range.")
-    (θ < 0 || θ > 60) && @warn("ItuR618.crosspolarizationdiscrimination only supports elevation angles between 0 and 60 degrees.\nThe given elevation angle $θ degrees is outside this range.")
-
-    if f > 55
-        return 100  # large discrimination
-    end
-
-    shouldscale = false
-    if 4 <= f < 6
-        forig = f
-        f = 6.0
-        shouldscale = true
-    end
-
-    # step 1, equation 65
-    logf = log10(f)
-    if 6 <= f < 9
-        Cf = 60 * logf - 28.3
-    elseif 9 <= f < 36
-        Cf = 26*logf + 4.1
-    elseif 36 <= f <= 55
-        Cf = 35.9*logf - 11.3
-    end
-
-    # step 2
-    if 6 <= f < 9
-        Vf = 30.8 * f^(-0.21)        
-    elseif 9 <= f < 20
-        Vf = 12.8 * f^0.19
-    elseif 20 <= f < 40
-        Vf = 22.6
-    elseif 40 <= f <= 55
-        Vf = 13.0 
-    end
-
-    Cₐ = Vf * log10(Aᵣ)     # equation 66
-
-    # step 3, equation 67
-    if polarization == EnumCircularPolarization
-        Cτ = 0
-    else
-        Cτ = 14.948500216800937  # -10 * log10(1 - 0.484 * (1 + cos(4 * τ))), τ = 0 or 90
-    end
-
-    # step 4
-    Cθ = -40 * log10(cos(deg2rad(θ)))     # equation 68
-
-    # step 5
-    if p <= 0.001
-        σ = 15
-    elseif p <= 0.01
-        σ = 10
-    elseif p <= 0.1
-        σ = 5
-    else
-        σ = 0
-    end
-
-    Cσ = 0.0053 * σ * σ     # equation 69
-
-    # step 6
-    XPDrain = Cf - Cₐ + Cτ + Cθ + Cσ     # equation 70
-
-    # step 7
-    Cice = XPDrain * (0.3 + 0.1*log10(p))/2     # equation 71
-
-    # step 8
-    XPDp = XPDrain - Cice     # equation 72
-
-    if shouldscale
-        XPDp = XPDp - 20*log10(forig/f)
-    end
-    
-    return XPDp
 end
 
 end # module ItuRP618

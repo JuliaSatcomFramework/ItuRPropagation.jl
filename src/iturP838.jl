@@ -5,7 +5,7 @@ Recommendation ITU-R P.838-3 recommends the procedure for obtaining the
  specfic attenuation (gamma sub R in dB/km) from the rain rate R (mm/h).
 =#
 
-using ..ItuRPropagation: ItuRPropagation, LatLon, ItuRVersion, _todeg, SUPPRESS_WARNINGS, tilt_from_polarization, IturEnum, _toghz, EnumCircularPolarization
+using ..ItuRPropagation: ItuRPropagation, LatLon, ItuRVersion, _todeg, SUPPRESS_WARNINGS, tilt_from_polarization, IturEnum, _toghz, EnumCircularPolarization, _validel
 using Artifacts
 
 const version = ItuRVersion("ITU-R", "P.838", 8, "03/2005")
@@ -73,13 +73,13 @@ function _kₕkᵥαₕαᵥ(f)
 
     # coefficient α_v based on equation 3
     αᵥ = αᵥm * logf + αᵥc + compute_sum(αᵥaⱼ, αᵥbⱼ, αᵥcⱼ)
-    return (kₕ, kᵥ, αₕ, αᵥ)
+    return (;kₕ, kᵥ, αₕ, αᵥ)
 end
 
 #endregion internal functions
 
 """
-    rainspecificattenuation(f::Float64, θ::Float64, R::Float64, polarization::IturEnum)
+    rainspecificattenuation(f, el; R, polarization::IturEnum, polarization_angle = nothing)
 
 Computes rain specific attenuation for horizontal polarization based on equation 1 of Section 1.
 
@@ -97,17 +97,24 @@ Computes rain specific attenuation for horizontal polarization based on equation
 - specific attenuation at given rain rate (dB)
 """
 function rainspecificattenuation(f, el; R, polarization::IturEnum = EnumCircularPolarization, polarization_angle = nothing)
-    # Input processing
-    τ = @something(polarization_angle, tilt_from_polarization(polarization))
-    τ = _todeg(τ)
+    f = _toghz(f)
     el = _todeg(el)
+    (; γᵣ) = _rainspecificattenuation(f, el; R, polarization, polarization_angle)
+    return γᵣ
+end
+
+function _rainspecificattenuation(f, el; R, polarization::IturEnum = EnumCircularPolarization, polarization_angle = nothing)
+    # Input processing
+    polarization_angle = @something(polarization_angle, tilt_from_polarization(polarization)) |> _todeg
+    τ = polarization_angle
 
     cosθ² = cos(el |> deg2rad)^2
     cos2τ = cos(2τ |> deg2rad)
     kₕ, kᵥ, αₕ, αᵥ = _kₕkᵥαₕαᵥ(f)
     k = (kₕ + kᵥ + (kₕ - kᵥ) * cosθ² * cos2τ) / 2
     α = (kₕ * αₕ + kᵥ * αᵥ + (kₕ * αₕ - kᵥ * αᵥ) * cosθ² * cos2τ) / (2k)
-    return k * R^α
+    γᵣ = k * R^α
+    return (; γᵣ, α, k, kₕ, kᵥ, αₕ, αᵥ)
 end
 
 end # module ItuRP838
