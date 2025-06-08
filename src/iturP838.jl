@@ -5,8 +5,7 @@ Recommendation ITU-R P.838-3 recommends the procedure for obtaining the
  specfic attenuation (gamma sub R in dB/km) from the rain rate R (mm/h).
 =#
 
-using ..ItuRPropagation
-using ..ItuRPropagation: tilt_from_polarization
+using ..ItuRPropagation: ItuRPropagation, LatLon, ItuRVersion, _todeg, SUPPRESS_WARNINGS, tilt_from_polarization, IturEnum, _toghz, EnumCircularPolarization
 using Artifacts
 
 const version = ItuRVersion("ITU-R", "P.838", 8, "03/2005")
@@ -46,7 +45,7 @@ const αᵥc = 0.83433
 #region internal functions
 
 """
-    _kₕkᵥαₕαᵥ(f::Float64)
+    _kₕkᵥαₕαᵥ(f)
 
 Computes rain specific attenuation coefficients based on Section 1.
 
@@ -56,7 +55,8 @@ Computes rain specific attenuation coefficients based on Section 1.
 # Return
 - `(kₕ::Real, kᵥ::Real, αₕ::Real, αᵥ::Real)`: rain specific attenuation coefficients
 """
-function _kₕkᵥαₕαᵥ(f::Real)
+function _kₕkᵥαₕαᵥ(f)
+    f = _toghz(f)
     logf = log10(f)
     compute_sum(av,bv,cv) = sum(zip(av, bv, cv)) do (a,b,c)
         a * exp(-((logf - b) / c)^2)
@@ -85,25 +85,25 @@ Computes rain specific attenuation for horizontal polarization based on equation
 
 # Arguments
 - `f::Float64`: frequency (GHz)
-- `θ:Float64`: path elevation angle (degrees)
-- `R::Float64`: rain rate (mm/hr)
-- `τ::Real`: Polarization tilt angle (degrees) relative to horizontal polarization (τ = 45° for circular polarization)
+- `el:Float64`: path elevation angle (degrees)
+
+# Keyword Arguments
+- `R`: rain rate (mm/hr)
+- `polarization::IturEnum`: polarization (EnumHorizontalPolarization, EnumVerticalPolarization, or EnumCircularPolarization). Defaults to circular polarization.
+- `polarization_angle`: Polarization tilt angle (degrees) relative to horizontal polarization (τ = 45° for circular polarization)
+  - Note: If this is provided, the `polarization` argument is ignored
 
 # Return
 - specific attenuation at given rain rate (dB)
 """
-function rainspecificattenuation(f, θ, R, polarization::IturEnum)
-    τ = tilt_from_polarization(polarization)
-    return rainspecificattenuation(f, θ, R, τ)
-end
-function rainspecificattenuation(
-    f::Real, 
-    θ::Real, 
-    R::Real, 
-    τ::Real,
-)
-    cosθ² = cosd(θ)^2
-    cos2τ = cosd(2τ)
+function rainspecificattenuation(f, el; R, polarization::IturEnum = EnumCircularPolarization, polarization_angle = nothing)
+    # Input processing
+    τ = @something(polarization_angle, tilt_from_polarization(polarization))
+    τ = _todeg(τ)
+    el = _todeg(el)
+
+    cosθ² = cos(el |> deg2rad)^2
+    cos2τ = cos(2τ |> deg2rad)
     kₕ, kᵥ, αₕ, αᵥ = _kₕkᵥαₕαᵥ(f)
     k = (kₕ + kᵥ + (kₕ - kᵥ) * cosθ² * cos2τ) / 2
     α = (kₕ * αₕ + kᵥ * αᵥ + (kₕ * αₕ - kᵥ * αᵥ) * cosθ² * cos2τ) / (2k)

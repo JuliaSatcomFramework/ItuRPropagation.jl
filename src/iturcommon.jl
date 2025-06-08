@@ -25,7 +25,7 @@ struct LatLon
 end
 
 # This functions are used for processing inputs and allow easier extension to support types from other packages
-@inline _torad(val::Real) = deg2rad(val)
+@inline _todeg(val::Real) = val
 
 # We expects length values to be provided in km
 @inline _tokm(val::Real) = val
