@@ -69,17 +69,18 @@ Computes scintillation attenuation based on Section 2.4.1 of ITU-R P618-13.
 function attenuations(
     latlon::LatLon,
     f::Real,
-    p::Real,
     el::Real,
-    D::Real;
-    η::Real=60,
+    p::Real,
+    ;
+    D,
+    efficiency = 60, η=efficiency,
     alt = nothing,
     polarization::IturEnum=EnumCircularPolarization
 )
-    Ac = ItuRP840.cloudattenuation(latlon, f, el, max(1, p))
-    Ag = ItuRP676.gaseousattenuation(latlon, f, el, max(1, p); alt)
-    Ar = ItuRP618.rainattenuation(latlon, f, p, el, polarization)
-    As = ItuRP618.scintillationattenuation(latlon, f, p, el, D, η)
+    Ac = ItuRP840.cloudattenuation(latlon, f, el, max(5, p))
+    Ag = ItuRP676.gaseousattenuation(latlon, f, el, max(5, p); alt)
+    Ar = ItuRP618.rainattenuation(latlon, f, el, p, polarization)
+    As = ItuRP618.scintillationattenuation(latlon, f, el, p; D, η)
 
     At = Ag + sqrt((Ar + Ac)^2 + As * As)
     return (Ac=Ac, Ag=Ag, Ar=Ar, As=As, At=At)

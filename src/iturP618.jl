@@ -5,8 +5,7 @@ This Recommendation predicts the various propagation parameters needed in planni
 systems operating in either the Earth-to-space or space-to-Earth direction.
 =#
 
-using ..ItuRPropagation
-using ..ItuRPropagation: tilt_from_polarization
+using ..ItuRPropagation: ItuRPropagation, LatLon, ItuRVersion, _tolatlon, _tokm, _todeg, _toghz, SUPPRESS_WARNINGS, IturEnum, tilt_from_polarization
 using Artifacts
 
 const version = ItuRVersion("ITU-R", "P.618", 14, "(08/2023)")
@@ -21,41 +20,51 @@ Computes scintillation attenuation based on Section 2.4.1.
 # Arguments
 - `latlon::LatLon`: latitude and longitude (degrees)
 - `f::Real`: frequency (GHz)
-- `p::Real`: exceedance probability (%)
 - `θ::Real`: elevation angle (degrees)
-- `D::Real`: antenna diameter (m)
-- `η::Real=60`: antenna efficiency (% from 0 to 100, typically 60)
-- `hL::Real=1000.0`: height of turbulent layer (m) - equation 41
+- `p::Real`: exceedance probability (%)
+
+# Keyword Arguments
+- `D::Real=1.0`: antenna diameter (m)
+- `η::Real=60`: antenna efficiency (% from 0 to 100, typically 60). Can also be provided with the name `efficiency`.
 
 # Return
 - `Ascintillation::Real`: scintillation attenuation (dB)
 """
 function scintillationattenuation(
-    latlon::LatLon,
-    f::Real,
-    p::Real,
-    θ::Real,
-    D::Real,
-    η::Real=60.0,
-    hL::Real=1000.0
+    latlon,
+    f,
+    el,
+    p;
+    D=1.0,
+    efficiency = 60, η=efficiency,
+    warn=!SUPPRESS_WARNINGS[],
 )
-    # step 8 of Section 2.4.1
-    (p < 0.01 || p > 50) && @warn("ItuR618.scintillationattenuation only supports exceedance probabilities between 0.01% and 50%.\nThe given exceedance probability $p% is outside this range.")
+    (; As) = _scintillationattenuation(latlon, f, el, p; D, η, warn)
+    return As
+end
+
+function _scintillationattenuation(latlon, f, el, p; D, η, Nwet = nothing, warn=!SUPPRESS_WARNINGS[])
+    # We don't process latlon as that is only used in another function that does that
+    
+    # Inputs checks
+    (4 ≤ f ≤ 55) || !warn || @noinline(@warn("ItuR618.scintillationattenuation only supports frequencies between 4 and 55 GHz.\nThe given frequency $f GHz is outside this range. The result may be inaccurate."))
+    (0.01 ≤ p ≤ 50) || !warn || @noinline(@warn("ItuR618.scintillationattenuation only supports exceedance probabilities between 0.01% and 50%.\nThe given exceedance probability $p% is outside this range. The result may be inaccurate."))
     # list of parameters in Section 2.4.1
-    (θ < 5 || θ > 90) && @warn("ItuR618.scintillationattenuation only supports elevation angles between 5 and 90 degrees.\nThe given elevation angle $θ degrees is outside this range.")
+    (5 ≤ el ≤ 90) || !warn || @noinline(@warn("ItuR618.scintillationattenuation only supports elevation angles between 5 and 90 degrees.\nThe given elevation angle $el degrees is outside this range. The result may be inaccurate."))
     
     # step 2
-    Nwet = ItuRP453.wettermsurfacerefractivityannual_50(latlon)
+    Nwet = @something(Nwet, ItuRP453.wettermsurfacerefractivityannual_50(latlon))
 
     # step 3
     σref = 3.6e-3 + 1.0e-4 * Nwet     # equation 40
 
     # step 4
-    sinθ = sin(deg2rad(θ))
-    L = 2 * hL / (sqrt(sinθ * sinθ + 2.35e-4) + sinθ)     # equation 41
+    sinθ = sin(el |> deg2rad)
+    hL = 1000 # Height of turbulent layer (m)
+    L = 2 * hL / (sqrt(sinθ^2 + 2.35e-4) + sinθ)     # equation 41
 
     # step 5
-    DeffSquared = (η / 100) * D * D     # based on equation 42
+    DeffSquared = (η / 100) * D^2     # based on equation 42
 
     # step 6
     x = 1.22 * DeffSquared * (f / L)     # equation 43a
@@ -68,92 +77,102 @@ function scintillationattenuation(
         return 0.0
     end
     # for x < 7.0
-    g = sqrt(3.86 * (x * x + 1)^(11 / 12) * sin(11 / 6 * atan(1, x)) - 7.08 * x^(5 / 6))     # equation 43
+    g = sqrt(3.86 * (x^2 + 1)^(11 / 12) * sin(11 / 6 * atan(1, x)) - 7.08 * x^(5 / 6))     # equation 43
 
     # step 7
-    σ = σref * f^(7 / 12) * (g / (sinθ)^(1.2))     # equation 44
+    σ = σref * f^(7 / 12) * (g / sinθ^(1.2))     # equation 44
 
     # step 8
     logp = log10(p)
     aₚ = -0.061 * logp^3 + 0.072 * logp^2 - 1.71 * logp + 3     # equation 45
 
     # step 9
-    Ascintillation = aₚ * σ     # equation 46
-    return Ascintillation
+    As = aₚ * σ     # equation 46
+    return (; As, Nwet, σref, L, x, g, σ, aₚ)
 end
 
 
 """
-    rainattenuation(lat::Real, lon::Real, f::Real, p::Real, θ::Real, polarization::IturEnum=EnumCircularPolarization; kwargs...)
+    rainattenuation(latlon, f, el, p; polarization::IturEnum=EnumCircularPolarization, kwargs...)
 
 Computes rain attenuation based on Section 2.2.1.1.
     
 # Arguments
-- `lat::Real`: latitude (degrees)
-- `lon::Real`: longitude (degrees)
+- `latlon`: object representing latitude and longitude, must be convertible to `ItuRPropagation.LatLon`
 - `f::Real`: frequency (GHz),
+- `el::Real`: elevation angle (degrees)
 - `p::Real`: exceedance probability (%)
-- `θ::Real`: elevation angle (degrees)
-- `polarization::IturEnum=EnumCircularPolarization`: polarization (EnumHorizontalPolarization, EnumVerticalPolarization, or EnumCircularPolarization) 
-  - Note that this last argument is overridden by the keyword argument `polarization_angle` if provided
 
 # Keyword Arguments
 - `h_r` or `hᵣ`: Rain height [Km] to be used for the computation. Defaults to `ItuRP1511.topographicheight(lat, lon)`
+- `polarization::IturEnum=EnumCircularPolarization`: polarization (EnumHorizontalPolarization, EnumVerticalPolarization, or EnumCircularPolarization) 
+  - Note that this last argument is overridden by the keyword argument `polarization_angle` if provided
 - `polarization_angle`: Tilt angle [degrees] of the electric field polarization w.r.t. horizontal polarization. Defaults to 45, corresponding to a circularly polarized field.
 
 # Return
 - `Aₚ::Float64`: rain attenuation (dB)
 """
-rainattenuation(latlon::LatLon, args...; kwargs...) = rainattenuation(latlon.lat, latlon.lon, args...; kwargs...)::Float64
 function rainattenuation(
-    lat::Real,
-    lon::Real,
-    f::Real,
-    p::Real,
-    θ::Real,
-    polarization::IturEnum=EnumCircularPolarization;
+    latlon,
+    f,
+    el,
+    p;
+    polarization::IturEnum=EnumCircularPolarization,
     polarization_angle = tilt_from_polarization(polarization),
-    h_s::Real = ItuRP1511.topographicheight(lat, lon),
-    hₛ = h_s,
+    alt = nothing,
+    warn=!SUPPRESS_WARNINGS[],
+    hr = nothing, hᵣ = hr,
+    R001 = nothing,
 )
+    # Inputs Processing
+    el = _todeg(el)
+    f = _toghz(f)
+
+    # Inputs checks
     # first paragraph of 2.2.1.1
-    (f > 55 || f < 1) && @warn("ItuR618.rainattenuation only supports frequencies between 1 and 55 GHz.\nThe given frequency $f GHz is outside this range.")
+    (1 ≤ f ≤ 55) || !warn || @noinline(@warn("ItuR618.rainattenuation only supports frequencies between 1 and 55 GHz.\nThe given frequency $f GHz is outside this range. The result may be inaccurate."))
     
     # per step 10
-    (p < 0.001 || p > 5) && @warn("ItuR618.rainattenuation only supports exceedance probabilities between 0.001% and 5%.\nThe given exceedance probability $p% is outside this range.")
+    (0.001 ≤ p ≤ 5) || !warn || @noinline(@warn("ItuR618.rainattenuation only supports exceedance probabilities between 0.001% and 5%.\nThe given exceedance probability $p% is outside this range."))
+    (; Aₚ) = _rainattenuation(latlon, f, el, p; polarization_angle, alt, hᵣ, R001)
+    return Aₚ
+end
 
-    # step 1
-    hᵣ = ItuRP839.rainheightannual(lat, lon)
+function _rainattenuation(latlon, f, el, p; polarization_angle = nothing, alt = nothing, hᵣ = nothing, R001 = nothing)
+    # Inputs Processing
+    hᵣ = @something(hᵣ, ItuRP839.rainheightannual(latlon))
+    alt = @something(alt, ItuRP1511.topographicheight(latlon))
+    polarization_angle = @something(polarization_angle, 45)
+    R001 = @something(R001, ItuRP837.rainfallrate001(latlon))
 
-    # step 2
-    sinθ = sind(θ)
-    if (hᵣ - hₛ) <= 0
-        return 0.0
-    end
+    # We define the early exit output
+    early_out = (; Aₚ = 0.0, Lₛ = NaN, Lg = NaN, Lᵣ = NaN, v001 = NaN, A001 = NaN, β = NaN, hᵣ, Lₑ = NaN, γᵣ = NaN, r001 = NaN, R001)
     
-    Lₛ = θ >= 5 ? (hᵣ - hₛ) / sinθ : 2 * (hᵣ - hₛ) / (sqrt(sinθ^2 + (2 * (hᵣ - hₛ)) / Rₑ) + sinθ)
+    # Early exit
+    R001 ≈ 0 && return early_out # This is at the end of Step 4 in 618-14
+    altdiff = hᵣ - alt
+    altdiff > 0 || return early_out # This is at the end  of Step 2 in 618-14
+    
+    # Step 2
+    sinθ, cosθ = sincos(el |> deg2rad)
+    Lₛ = el >= 5 ? altdiff / sinθ : 2 * altdiff / (sqrt(sinθ^2 + (2 * altdiff) / Rₑ) + sinθ)
 
-    # step 3
-    cosθ = cosd(θ)
+    # Step 3
     Lg = Lₛ * cosθ
 
-    # step 4
-    R001 = ItuRP837.rainfallrate001(lat, lon)
-    R001 ≈ 0 && return 0.0
-
     # step 5
-    γᵣ = ItuRP838.rainspecificattenuation(f, θ, R001, polarization_angle)
+    γᵣ = ItuRP838.rainspecificattenuation(f, el; R=R001, polarization_angle)
 
     # step 6 - horizontal reduction factor
     r001 = 1 / (1 + 0.78 * sqrt((Lg * γᵣ) / f) - 0.38 * (1 - exp(-2 * Lg)))
 
     # step 7
-    abslat = abs(lat)
-    ζ = rad2deg(atan((hᵣ - hₛ) / (Lg * r001)))
-    Lᵣ = ζ > θ ? (Lg * r001) / cosθ : (hᵣ - hₛ) / sinθ
+    abslat = abs(latlon.lat)
+    ζ = rad2deg(atan((altdiff) / (Lg * r001)))
+    Lᵣ = ζ > el ? (Lg * r001) / cosθ : altdiff / sinθ
     χ = abslat < 36 ? 36 - abslat : 0.0
 
-    v001 = 1 / (1 + sqrt(sinθ) * (31 * (1 - exp(-θ / (1 + χ))) * (sqrt(Lᵣ * γᵣ) / (f * f)) - 0.45))
+    v001 = 1 / (1 + sqrt(sinθ) * (31 * (1 - exp(-el / (1 + χ))) * (sqrt(Lᵣ * γᵣ) / (f * f)) - 0.45))
 
     # step 8
     Lₑ = Lᵣ * v001
@@ -162,17 +181,19 @@ function rainattenuation(
     A001 = γᵣ * Lₑ
 
     # step 10
-    if p >= 1.0 || abslat >= 36
-        β = 0.0
-    elseif p < 1.0 && abslat < 36 && θ >= 25
-        β = -0.005 * (abslat - 36)
+    β = if p >= 1.0 || abslat >= 36
+        0.0
+    elseif p < 1.0 && abslat < 36 && el >= 25
+        -0.005 * (abslat - 36)
     else
-        β = -0.005 * (abslat - 36) + 1.8 - 4.25 * sinθ
+        -0.005 * (abslat - 36) + 1.8 - 4.25 * sinθ
     end
 
     Aₚ = A001 * (p / 0.01)^(-(0.655 + 0.033 * log(p) - 0.045 * log(A001) - β * (1 - p) * sinθ))
 
-    return Aₚ
+    out = (; Aₚ, Lₛ, Lg, Lᵣ, v001, A001, β, hᵣ, Lₑ, γᵣ, r001, R001)
+
+    return out
 end
 
 
