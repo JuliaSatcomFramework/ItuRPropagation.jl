@@ -1,6 +1,6 @@
 # ItuRPropagations
-[![Build Status](https://github.com/disberd/ItuRPropagation.jl/actions/workflows/CI.yml/badge.svg?branch=master)](https://github.com/disberd/ItuRPropagation.jl/actions/workflows/CI.yml?query=branch%3Amaster)
-[![Coverage](https://codecov.io/gh/disberd/ItuRPropagation.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/disberd/ItuRPropagation.jl)
+[![Build Status](https://github.com/JuliaSatcomFramework/ItuRPropagation.jl/actions/workflows/CI.yml/badge.svg?branch=master)](https://github.com/JuliaSatcomFramework/ItuRPropagation.jl/actions/workflows/CI.yml?query=branch%3Amaster)
+[![Coverage](https://codecov.io/gh/JuliaSatcomFramework/ItuRPropagation.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/JuliaSatcomFramework/ItuRPropagation.jl)
 [![Aqua QA](https://raw.githubusercontent.com/JuliaTesting/Aqua.jl/master/badge.svg)](https://github.com/JuliaTesting/Aqua.jl)
 
 A Julia implementation of some of the ITU-Recommendations for space links covering cloud, gaseous, rain, and scintillation attenuations.
