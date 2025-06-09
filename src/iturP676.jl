@@ -17,7 +17,7 @@ c) an approximate method in Annex 2 to estimate the statistics of slant path gas
 d) a Weibull approximation to the slant path water vapour attenuation for use in
     Recommendation ITU-R P.1853.
 
-The curren implementation only covers points a) and c) in the above list
+The current implementation only covers points a) and c) in the above list
 =#
 
 using ..ItuRPropagation: _todeg, ItuRP835, ItuRP453, ItuRVersion, ItuRP1511, LatLon, ItuRP2145, _toghz

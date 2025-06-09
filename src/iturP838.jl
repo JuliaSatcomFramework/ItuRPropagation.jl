@@ -2,7 +2,7 @@ module ItuRP838
 
 #=
 Recommendation ITU-R P.838-3 recommends the procedure for obtaining the 
- specfic attenuation (gamma sub R in dB/km) from the rain rate R (mm/h).
+ specific attenuation (gamma sub R in dB/km) from the rain rate R (mm/h).
 =#
 
 using ..ItuRPropagation: ItuRPropagation, LatLon, ItuRVersion, _todeg, SUPPRESS_WARNINGS, tilt_from_polarization, IturEnum, _toghz, EnumCircularPolarization, _validel

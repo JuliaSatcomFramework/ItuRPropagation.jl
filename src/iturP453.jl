@@ -61,7 +61,7 @@ end
 #endregion initialization
 
 """
-    radiorefractiveindex(Pd::Real, T::Real, e::Real)
+    radiorefractiveindex(T::Real, Pd::Real, e::Real)
 
 Compute the atmospheric radio refractive index \$\\sqrt[n]{1 + x + x^2 + \\ldots}\$ based on Section 1.
 
@@ -87,7 +87,7 @@ end
 
 
 """
-    drytermradiorefractivity(Pd, T)
+    drytermradiorefractivity(T, Pd)
 
 Compute the dry term of the radio refractivity based on Section 1.
 
@@ -108,7 +108,7 @@ end
 
 
 """
-    wettermradiorefractivity(Pd::Real, T::Real)
+    wettermradiorefractivity(T, e)
 
 Compute the wet term of the radio refractivity based on Section 1.
 
@@ -144,6 +144,7 @@ function wettermsurfacerefractivityannual(latlon, p; warn=!SUPPRESS_WARNINGS[])
         initialize!()
         NWET_ANNUAL.ccdf
     end)::SquareGridStatisticalData{SGD_TYPE}
+    latlon = _tolatlon(latlon)
     return itp(latlon, p; warn, kind="the wet term of surface refractivity")
 end
 
@@ -157,6 +158,7 @@ function wettermsurfacerefractivityannual_50(latlon)
         initialize!()
         NWET_ANNUAL.ccdf
     end)::SquareGridStatisticalData{SGD_TYPE}
+    latlon = _tolatlon(latlon)
     itp =  ccdf.items[12] # index 12 is the one corresponding to 50% exceedance probability
     return itp(latlon)
 end

@@ -18,7 +18,7 @@ struct LatLon
             lon -= 360
         end
         if lon < -180 || lon > 180
-            throw(ErrorException("lon=$lat\nlon (longitude) should be between -180 and 180"))
+            throw(ErrorException("lon=$lon\nlon (longitude) should be between -180 and 180"))
         end
         new(lat, lon)
     end
