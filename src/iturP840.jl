@@ -4,7 +4,7 @@ module ItuRP840
 This Recommendation provides methods to predict the attenuation due to clouds and fog on Earth-space paths.
 =#
 
-using ..ItuRPropagation: ItuRPropagation, LatLon, ItuRVersion, _tolatlon, _tokm, _todeg, _toghz, SUPPRESS_WARNINGS
+using ..ItuRPropagation: ItuRPropagation, LatLon, ItuRVersion, tolatlon, _tokm, _todeg, _toghz, SUPPRESS_WARNINGS
 using ..ItuRP1144: ItuRP1144, AbstractSquareGridITP, SquareGridData, SquareGridStatisticalData
 using Artifacts: Artifacts, @artifact_str
 
@@ -139,6 +139,7 @@ Computes the integrated liquid water content at a given location and exceedance 
 - `p`: exceedance probability (%)   
 """
 function liquidwatercontent(latlon, p; warn=!SUPPRESS_WARNINGS[])
+    latlon = tolatlon(latlon)
     itp = @something(ANNUAL_DATA.ccdf,let
         initialize!()
         ANNUAL_DATA.ccdf
@@ -161,6 +162,7 @@ Computes annual cloud attenuation along a slant path based on Section 3.
 - `Acloud::Real`: slant path cloud attenuation (dB)
 """
 function cloudattenuation(latlon, f, el, p; warn=!SUPPRESS_WARNINGS[])
+    # We don't preprocess the latlon as that is only used in liquidwatercontent which already preprocess
     L = liquidwatercontent(latlon, p)
     return cloudattenuation(latlon, f, el; L, warn)
 end

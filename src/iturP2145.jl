@@ -6,11 +6,11 @@ temperature, surface water vapour density and integrated water vapour content re
 gaseous attenuation and related effects on terrestrial and Earth-space paths.
 =#
 
-using ..ItuRPropagation: ItuRPropagation, LatLon, ItuRVersion, ItuRP1511, ItuRP1144, _tolatlon, _tokm, SUPPRESS_WARNINGS
+using ..ItuRPropagation: ItuRPropagation, LatLon, ItuRVersion, ItuRP1511, ItuRP1144, tolatlon, _tokm, SUPPRESS_WARNINGS, altitude_from_location
 using Artifacts: Artifacts, @artifact_str
 
 # Exports and constructor with separate latitude and longitude arguments
-for name in (:surfacetemperatureannual, :surfacewatervapourdensityannual, :surfacepressureannual, :surfacewatervapourcontentannual)
+for name in (:surfacetemperatureannual, :surfacewatervapourdensityannual, :surfacepressureannual, :surfacewatervapourcontentannual, :annual_surface_values)
     @eval $name(lat::Number, lon::Number, args...; kwargs...) = $name(LatLon(lat, lon), args...; kwargs...)
     @eval export $name
 end
@@ -127,14 +127,14 @@ end
 @inline itp_inputs(p::Real; warn, kind) = ItuRP1144.ccdf_itp_inputs(p, psannual; warn, kind)
 
 function (nt::SingleVariableData)(latlon; alt = nothing)
-    latlon = _tolatlon(latlon)
-    alt = @something(alt, ItuRP1511.topographicheight(latlon)) |> _tokm
+    alt = @something(alt, altitude_from_location(latlon)) |> _tokm
+    latlon = tolatlon(latlon)
     (; idxs, δr, δc) = itp_inputs(latlon)
     bilinear_interpolation(nt.mean, nt.scale, nt.Z_ground, nt.scale_func, idxs, δr, δc; alt)
 end
 function (nt::SingleVariableData)(latlon, p::Real; alt = nothing, warn = !SUPPRESS_WARNINGS[])
-    latlon = _tolatlon(latlon)
-    alt = @something(alt, ItuRP1511.topographicheight(latlon)) |> _tokm
+    alt = @something(alt, altitude_from_location(latlon)) |> _tokm
+    latlon = tolatlon(latlon)
     (; idxs, δr, δc) = itp_inputs(latlon)
     (; pindexabove, pindexbelow) = itp_inputs(p; warn, kind = warnmsg_kind(nt))
     
@@ -276,7 +276,7 @@ surfacewatervapourcontentannual(args...; kwargs...) = getvariable(Val(:V))(args.
 
 
 """
-    _annual_surface_values(latlon[, p]; alt = nothing)
+    annual_surface_values(latlon[, p]; alt = nothing)
 
 This function is used to provide the annual surface values for variables refrenced in P676 and P618:
 - `P`: The total barometric pressure
@@ -287,8 +287,9 @@ The function can be called with the outage probability `p` as second positional 
 
 It also compute the altitude of the provided location if provided as nothing as kwarg
 """
-function _annual_surface_values(latlon, args...; alt = nothing)
-    alt = @something(alt, ItuRP1511.topographicheight(latlon))
+function annual_surface_values(latlon, args...; alt = nothing)
+    alt = @something(alt, altitude_from_location(latlon)) |> _tokm
+    latlon = tolatlon(latlon)
     P = surfacepressureannual(latlon, args...; alt)
     T = surfacetemperatureannual(latlon, args...; alt)
     ρ = surfacewatervapourdensityannual(latlon, args...; alt)

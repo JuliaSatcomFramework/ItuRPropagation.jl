@@ -19,10 +19,13 @@
     @test_logs (:warn, r"between 4 and 55 GHz") match_mode=:any ItuRP618.scintillationattenuation(LatLon(0, 0), 1000, 30, 3)
     @test_logs (:warn, r"between 0.01% and 50%") match_mode=:any ItuRP618.scintillationattenuation(LatLon(0, 0), 30, 1, 0.001)
     @test_logs (:warn, r"between 5 and 90 degrees") match_mode=:any ItuRP618.scintillationattenuation(LatLon(0, 0), 30, 1, 1)
+    @test_logs (:warn, r"between 0 and 100") match_mode=:any ItuRP618.scintillationattenuation(LatLon(0, 0), 30, 20, 1; efficiency = .5)
     @test_throws ArgumentError ItuRP618.scintillationattenuation(LatLon(0, 0), 30, 100, 1)
+    @test_throws ArgumentError ItuRP618.scintillationattenuation(LatLon(0, 0), 30, 1, 1; efficiency = 101)
 
     # Total Attenuations, we just test that scintillation warn is not triggered when p < 0.01 but function is called through attenuations
     @test_logs ItuRP618.attenuations(LatLon(0, 0), 30, 10, 0.001; D = 1)
+    @test_throws "forgot to provide one argument" ItuRP618.attenuations(0, 0, 30, 10; D = 1)
 
     # Test suppression of warnings
     ItuRPropagation.SUPPRESS_WARNINGS[] = true
@@ -44,6 +47,7 @@
         @test_logs ItuRP618.scintillationattenuation(LatLon(0, 0), 1000, 30, 3)
         @test_logs ItuRP618.scintillationattenuation(LatLon(0, 0), 30, 1, 0.001)
         @test_logs ItuRP618.scintillationattenuation(LatLon(0, 0), 30, 1, 1)
+        @test_logs ItuRP618.scintillationattenuation(LatLon(0, 0), 30, 20, 1; efficiency = .5)
     finally
         ItuRPropagation.SUPPRESS_WARNINGS[] = false
     end
@@ -99,4 +103,25 @@ end
     @test ItuRP2145.surfacewatervapourdensityannual(lls..., p) == ItuRP2145.surfacewatervapourdensityannual(ll, p)
     @test ItuRP2145.surfacepressureannual(lls..., p) == ItuRP2145.surfacepressureannual(ll, p)
     @test ItuRP2145.surfacewatervapourcontentannual(lls..., p) == ItuRP2145.surfacewatervapourcontentannual(ll, p)
+end
+
+@testitem "Implement Interface" begin
+    # We create a custom struct that also stores location (in m) and lat/lon in radians
+    struct LLA
+        lat::Float64
+        lon::Float64
+        alt::Float64
+    end
+    lla = LLA(π/6, π/4, 1200)
+    Base.convert(::Type{LatLon}, lla::LLA) = LatLon(lla.lat |> rad2deg, lla.lon |> rad2deg)::LatLon
+    ItuRPropagation.altitude_from_location(lla::LLA) = lla.alt / 1e3
+
+    alt_1511 = ItuRP1511.topographicheight(lla)
+    @test ItuRPropagation.altitude_from_location(lla) != alt_1511
+
+    atts = ItuRP618.attenuations(lla, 30, 20, 1; D = 1)
+    bench_wrongalt = ItuRP618.attenuations(LatLon(30, 45), 30, 20, 1; D = 1)
+    bench_correctalt = ItuRP618.attenuations(lla, 30, 20, 1; D = 1, alt = 1.2)
+    @test atts.At ≉ bench_wrongalt.At
+    @test atts.At ≈ bench_correctalt.At
 end

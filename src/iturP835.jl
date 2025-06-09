@@ -5,7 +5,7 @@ Recommendation ITU-R P.835 provides expressions and data for reference standard 
 the calculation of gaseous attenuation on Earth-space paths.
 =#
 
-using ..ItuRPropagation
+using ..ItuRPropagation: ItuRPropagation, LatLon, ItuRVersion, tolatlon, _tokm
 using Artifacts
 
 const version = ItuRVersion("ITU-R", "P.835", 7, "(08/2024)")
@@ -24,7 +24,8 @@ Standard temperature for geometric heights <= 100 km, based on equations 2a-2g a
 # Return
 - temperature (°K)
 """
-function standardtemperature(Z::Real)
+function standardtemperature(Z)
+    Z = _tokm(Z)
     0 ≤ Z ≤ 100 || throw(ArgumentError("Z=$Z\n (geometric height) in IturP835.standardtemperature must be between 0 and 100"))
 
     hp = geopotentialheight(Z)
@@ -51,17 +52,18 @@ end
 
 
 """
-    standardpressure(Z::Float64)
+    standardpressure(Z)
 
 Standard pressure for geometric heights <= 100 km, based on equations 3a-3g and 5 of Section 1.1.
 
 # Arguments
-- `Z::Float64`: geometric height (km)
+- `Z`: geometric height (km)
 
 # Return
 - dry pressure (hPa)
 """
-function standardpressure(Z::Real)
+function standardpressure(Z)
+    Z = _tokm(Z)
     0 ≤ Z ≤ 100 || throw(ArgumentError("Z=$Z\n (geometric height) in IturP835.standardpressure must be between 0 and 100"))
     hp = geopotentialheight(Z)
     if 0 <= hp <= 11
@@ -95,7 +97,7 @@ end
 Standard water vapour density for geometric heights <= 100 km, based on equations 6-8 of Section 1.2.
 
 # Arguments
-- `Z::Real`: geometric height (km)
+- `Z`: geometric height (km)
 
 # Keyword arguments
 - `rho_0::Real=7.5`: standard ground level water vapour density (g/m^3). Can also be provided as `ρ₀`.
@@ -103,12 +105,13 @@ Standard water vapour density for geometric heights <= 100 km, based on equation
 - `P::Real`: Total barometric pressure (hPa) at given height. Computed with `standardpressure(Z)` if not provided.
 """
 function standardwatervapourdensity(
-        Z::Real; 
+        Z; 
         rho_0 = nothing,
         ρ₀ = nothing,
         T = standardtemperature(Z),
         P = standardpressure(Z),
 )
+    Z = _tokm(Z)
     ρ₀ = @something ρ₀ rho_0 7.5
     # equation 6 where h₀ = 2; equation 7 where ρ₀=7.5
     ρ = ρ₀ * exp(-Z / 2)

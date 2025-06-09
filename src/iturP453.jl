@@ -7,7 +7,7 @@ Recommendation ITU-R P.453 provides methods to estimate the radio refractive ind
  parameters and their statistical variation.
 =#
 
-using ..ItuRPropagation: ItuRPropagation, LatLon, ItuRVersion, _tolatlon, _tokm, IturEnum, EnumWater, EnumIce, SUPPRESS_WARNINGS
+using ..ItuRPropagation: ItuRPropagation, LatLon, ItuRVersion, tolatlon, _tokm, IturEnum, EnumWater, EnumIce, SUPPRESS_WARNINGS
 using ..ItuRP1144: ItuRP1144, AbstractSquareGridITP, SquareGridData, SquareGridStatisticalData
 using Artifacts
 const version = ItuRVersion("ITU-R", "P.453", 14, "(08/2019)")
@@ -61,7 +61,7 @@ end
 #endregion initialization
 
 """
-    radiorefractiveindex(Pd::Real, T::Real, e::Real)
+    radiorefractiveindex(T::Real, Pd::Real, e::Real)
 
 Compute the atmospheric radio refractive index \$\\sqrt[n]{1 + x + x^2 + \\ldots}\$ based on Section 1.
 
@@ -87,7 +87,7 @@ end
 
 
 """
-    drytermradiorefractivity(Pd, T)
+    drytermradiorefractivity(T, Pd)
 
 Compute the dry term of the radio refractivity based on Section 1.
 
@@ -108,7 +108,7 @@ end
 
 
 """
-    wettermradiorefractivity(Pd::Real, T::Real)
+    wettermradiorefractivity(T, e)
 
 Compute the wet term of the radio refractivity based on Section 1.
 
@@ -144,6 +144,7 @@ function wettermsurfacerefractivityannual(latlon, p; warn=!SUPPRESS_WARNINGS[])
         initialize!()
         NWET_ANNUAL.ccdf
     end)::SquareGridStatisticalData{SGD_TYPE}
+    latlon = tolatlon(latlon)
     return itp(latlon, p; warn, kind="the wet term of surface refractivity")
 end
 
@@ -157,6 +158,7 @@ function wettermsurfacerefractivityannual_50(latlon)
         initialize!()
         NWET_ANNUAL.ccdf
     end)::SquareGridStatisticalData{SGD_TYPE}
+    latlon = tolatlon(latlon)
     itp =  ccdf.items[12] # index 12 is the one corresponding to 50% exceedance probability
     return itp(latlon)
 end

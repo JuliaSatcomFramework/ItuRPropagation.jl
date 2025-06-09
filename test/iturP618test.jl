@@ -191,11 +191,11 @@ end
         p = rand() * 49.999 + .001
         latlon = LatLon(rand() * 180 - 90, rand() * 360 - 180)
         # Compute the stable kwargs for faster computation. Elevation is irrelevant here as we only need the zenith values which are contained in the `kwargs` field
-        (; kwargs) = ItuRP618._attenuations(latlon, f, rand() * 50 + 10, p; D)
+        (; kwargs) = ItuRP618.attenuations(latlon, f, rand() * 50 + 10, p, Val(true); D)
         for _ in 1:20
             el = rand() * 85 + 5 # Elevation is irrelevant here as we only need the zenith values
             out_standard = ItuRP618.attenuations(latlon, f, el, p; D)
-            out_fast = ItuRP618._attenuations(latlon, f, el, p; D, kwargs...).attenuations
+            out_fast = ItuRP618.attenuations(latlon, f, el, p; D, kwargs...)
             @test all(propertynames(out_standard)) do fld
                 isapprox(getproperty(out_standard, fld), getproperty(out_fast, fld))
             end
