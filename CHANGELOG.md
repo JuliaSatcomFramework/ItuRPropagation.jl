@@ -38,6 +38,7 @@ Note that basically all changes above are **BREAKING**
   - Values in `Hz` (or any frequency unit) for `f` inputs
   - Values in `m` (or any length unit) for any input expecting km (e.g. `alt`)
   - Values in `°` or `rad` for `lat` and `lon`
+- Added support for `LatLon` and `LatLonAlt` from `CoordRefSystems.jl` as inputs to the various functions of the package.
 
 ### Removed
 - The `ItuRP618.raindiversitygain`  and `ItuRP618.crosspolarizationdiscrimination` functions were removed as they are not being used
