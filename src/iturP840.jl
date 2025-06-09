@@ -139,6 +139,7 @@ Computes the integrated liquid water content at a given location and exceedance 
 - `p`: exceedance probability (%)   
 """
 function liquidwatercontent(latlon, p; warn=!SUPPRESS_WARNINGS[])
+    latlon = _tolatlon(latlon)
     itp = @something(ANNUAL_DATA.ccdf,let
         initialize!()
         ANNUAL_DATA.ccdf
@@ -161,6 +162,7 @@ Computes annual cloud attenuation along a slant path based on Section 3.
 - `Acloud::Real`: slant path cloud attenuation (dB)
 """
 function cloudattenuation(latlon, f, el, p; warn=!SUPPRESS_WARNINGS[])
+    # We don't preprocess the latlon as that is only used in liquidwatercontent which already preprocess
     L = liquidwatercontent(latlon, p)
     return cloudattenuation(latlon, f, el; L, warn)
 end
