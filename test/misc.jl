@@ -1,3 +1,13 @@
+@testitem "Errors" begin
+    @test_throws ArgumentError ItuRP618.rainattenuation(LatLon(0, 0), 30, 100, 1)
+    @test_throws ArgumentError ItuRP618.scintillationattenuation(LatLon(0, 0), 30, 100, 1)
+    @test_throws ArgumentError ItuRP618.scintillationattenuation(LatLon(0, 0), 30, 1, 1; efficiency = 101)
+    @test_throws "forgot to provide one argument" ItuRP618.attenuations(0, 0, 30, 10; D = 1)
+
+    # LatLon with wrong lat
+    @test_throws ArgumentError LatLon(100, 0)
+end
+
 @testitem "Warnings" begin
     # Clouds
     @test_logs (:warn, r"between 1 and 200 GHz") match_mode=:any ItuRP840.cloudattenuation(LatLon(0, 0), 1000, 30, 5) 
@@ -14,18 +24,14 @@
     # P618
     @test_logs (:warn, r"between 1 and 55 GHz") match_mode=:any ItuRP618.rainattenuation(LatLon(0, 0), 1000, 30, 3)
     @test_logs (:warn, r"between 0.001% and 5%") match_mode=:any ItuRP618.rainattenuation(LatLon(0, 0), 30, 1, 6)
-    @test_throws ArgumentError ItuRP618.rainattenuation(LatLon(0, 0), 30, 100, 1)
 
     @test_logs (:warn, r"between 4 and 55 GHz") match_mode=:any ItuRP618.scintillationattenuation(LatLon(0, 0), 1000, 30, 3)
     @test_logs (:warn, r"between 0.01% and 50%") match_mode=:any ItuRP618.scintillationattenuation(LatLon(0, 0), 30, 1, 0.001)
     @test_logs (:warn, r"between 5 and 90 degrees") match_mode=:any ItuRP618.scintillationattenuation(LatLon(0, 0), 30, 1, 1)
     @test_logs (:warn, r"between 0 and 100") match_mode=:any ItuRP618.scintillationattenuation(LatLon(0, 0), 30, 20, 1; efficiency = .5)
-    @test_throws ArgumentError ItuRP618.scintillationattenuation(LatLon(0, 0), 30, 100, 1)
-    @test_throws ArgumentError ItuRP618.scintillationattenuation(LatLon(0, 0), 30, 1, 1; efficiency = 101)
 
     # Total Attenuations, we just test that scintillation warn is not triggered when p < 0.01 but function is called through attenuations
     @test_logs ItuRP618.attenuations(LatLon(0, 0), 30, 10, 0.001; D = 1)
-    @test_throws "forgot to provide one argument" ItuRP618.attenuations(0, 0, 30, 10; D = 1)
 
     # Test suppression of warnings
     ItuRPropagation.SUPPRESS_WARNINGS[] = true
@@ -124,4 +130,34 @@ end
     bench_correctalt = ItuRP618.attenuations(lla, 30, 20, 1; D = 1, alt = 1.2)
     @test atts.At ≉ bench_wrongalt.At
     @test atts.At ≈ bench_correctalt.At
+end
+
+@testitem "Unitful Extension" begin
+    using Unitful
+
+    alt_m = 1200u"m"
+    f_hz = 20e9u"Hz"
+    el_d = 20u"°"
+    el_rad = uconvert(u"rad", el_d)
+
+    alt = uconvert(u"km", alt_m)
+    f = uconvert(u"GHz", f_hz)
+    el = uconvert(u"°", el_rad)
+    p = 1
+    D = 1
+
+    att_nounit = ItuRP618.attenuations(LatLon(0, 0), f, el, p; D = D)
+    att_unit_deg = ItuRP618.attenuations(LatLon(0, 0), f_hz, el_d, p; D = D)
+    att_unit_rad = ItuRP618.attenuations(LatLon(0, 0), f_hz, el_rad, p; D = D)
+    # This is providing lat and lon as seprate numbers, not a LatLon object
+    att_unit_split = ItuRP618.attenuations(0, 0u"°", f, el, p; D = D)
+
+    @test all(propertynames(att_nounit)) do fld
+        getproperty(att_nounit, fld) ≈ getproperty(att_unit_deg, fld) ≈ getproperty(att_unit_rad, fld)
+    end
+
+    # Test LatLon constructor with Unitful numbers as inputs
+    @test LatLon(0, 0) == LatLon(0u"°", 0u"°") == LatLon(0u"°", 0u"rad") == LatLon(0u"rad", 0u"°") == LatLon(0u"rad", 0u"rad") == LatLon(0, 0u"°") == LatLon(0u"°", 0)
+
+    # We also test implicit conversion works
 end

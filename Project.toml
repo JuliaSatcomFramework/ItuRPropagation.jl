@@ -7,6 +7,13 @@ version = "0.3.0-DEV"
 [deps]
 Artifacts = "56f22d72-fd6d-98f1-02f0-08ddc0907c33"
 
+[weakdeps]
+Unitful = "1986cc42-f94f-5a68-af5c-568840ba703d"
+
+[extensions]
+UnitfulExt = "Unitful"
+
 [compat]
 Artifacts = "1"
+Unitful = "1.23.0"
 julia = "1.10"

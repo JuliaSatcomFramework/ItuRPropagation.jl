@@ -34,6 +34,10 @@ Note that basically all changes above are **BREAKING**
 - It is now possible to add support for custom location types for all public functions of `ItuRPropagation` by:
   - Defining a method for `Base.convert(::Type{LatLon}, custom_location::T)` which translates the `custom_location` to the equivalent `LatLon` object
   - Optionally define a custom method for `ItuRPropagation.altitude_from_location(custom_location::T)` which returns the altitude of the location **in km** if this information is stored in the type of `custom_location`.
+- The package now support Unitful inputs through an extension. The following units are supported as input to any of the public functions of this package:
+  - Values in `Hz` (or any frequency unit) for `f` inputs
+  - Values in `m` (or any length unit) for any input expecting km (e.g. `alt`)
+  - Values in `°` or `rad` for `lat` and `lon`
 
 ### Removed
 - The `ItuRP618.raindiversitygain`  and `ItuRP618.crosspolarizationdiscrimination` functions were removed as they are not being used
