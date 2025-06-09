@@ -46,6 +46,11 @@ function scintillationattenuation(
     efficiency = 60, η=efficiency,
     warn=!SUPPRESS_WARNINGS[],
 )
+    # Input preprocessing
+    latlon = _tolatlon(latlon)
+    f = _toghz(f)
+    el = _todeg(el)
+    
     (; As) = _scintillationattenuation(latlon, f, el, p; D, η, warn)
     return As
 end
@@ -242,12 +247,17 @@ function attenuations(
     polarization::IturEnum=EnumCircularPolarization,
     polarization_angle = tilt_from_polarization(polarization),
     warn=!SUPPRESS_WARNINGS[],
+    Ag_zenith = nothing,
+    Ac_zenith = nothing,
+    Nwet = nothing,
+    R001 = nothing,
+    hᵣ = nothing,
 )
     latlon = _tolatlon(latlon)
     el = _todeg(el)
     f = _toghz(f)
     _validel(el) # Validate input elevation
-    (; attenuations) = _attenuations(latlon, f, el, p; D, η, polarization_angle, alt, warn)
+    (; attenuations) = _attenuations(latlon, f, el, p; D, η, polarization_angle, alt, warn, Ag_zenith, Ac_zenith, Nwet, R001, hᵣ)
     return attenuations
 end
 
