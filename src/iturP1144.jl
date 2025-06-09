@@ -2,7 +2,7 @@ module ItuRP1144
 
 export bilinear_interpolation
 
-using ..ItuRPropagation: ItuRPropagation, LatLon, ItuRVersion, _tolatlon
+using ..ItuRPropagation: ItuRPropagation, LatLon, ItuRVersion, tolatlon
 
 const version = ItuRVersion("ITU-R", "P.1144", 12, "(08/2023)")
 

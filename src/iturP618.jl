@@ -5,7 +5,7 @@ This Recommendation predicts the various propagation parameters needed in planni
 systems operating in either the Earth-to-space or space-to-Earth direction.
 =#
 
-using ..ItuRPropagation: ItuRPropagation, LatLon, ItuRVersion, _tolatlon, _tokm, _todeg, _toghz, SUPPRESS_WARNINGS, IturEnum, tilt_from_polarization, _validel, ItuRP840, ItuRP676, ItuRP453, ItuRP838, ItuRP837, ItuRP1511, ItuRP839, EnumCircularPolarization
+using ..ItuRPropagation: ItuRPropagation, LatLon, ItuRVersion, tolatlon, _tokm, _todeg, _toghz, SUPPRESS_WARNINGS, IturEnum, tilt_from_polarization, _validel, ItuRP840, ItuRP676, ItuRP453, ItuRP838, ItuRP837, ItuRP1511, ItuRP839, EnumCircularPolarization
 using Artifacts
 
 const version = ItuRVersion("ITU-R", "P.618", 14, "(08/2023)")
@@ -47,7 +47,7 @@ function scintillationattenuation(
     warn=!SUPPRESS_WARNINGS[],
 )
     # Input preprocessing
-    latlon = _tolatlon(latlon)
+    latlon = tolatlon(latlon)
     f = _toghz(f)
     el = _todeg(el)
     
@@ -142,7 +142,7 @@ function rainattenuation(
     warn=!SUPPRESS_WARNINGS[],
 )
     # Inputs Processing
-    latlon = _tolatlon(latlon)
+    latlon = tolatlon(latlon)
     el = _todeg(el)
     f = _toghz(f)
 
@@ -305,7 +305,7 @@ function attenuations(
     hᵣ = nothing,
     gamma_oxygen = nothing, γₒ = nothing,
 ) where {full_output}
-    latlon = _tolatlon(latlon)
+    latlon = tolatlon(latlon)
     el = _todeg(el)
     f = _toghz(f)
     _validel(el) # Validate input elevation

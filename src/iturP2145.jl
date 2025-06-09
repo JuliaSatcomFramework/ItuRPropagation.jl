@@ -6,7 +6,7 @@ temperature, surface water vapour density and integrated water vapour content re
 gaseous attenuation and related effects on terrestrial and Earth-space paths.
 =#
 
-using ..ItuRPropagation: ItuRPropagation, LatLon, ItuRVersion, ItuRP1511, ItuRP1144, _tolatlon, _tokm, SUPPRESS_WARNINGS
+using ..ItuRPropagation: ItuRPropagation, LatLon, ItuRVersion, ItuRP1511, ItuRP1144, tolatlon, _tokm, SUPPRESS_WARNINGS
 using Artifacts: Artifacts, @artifact_str
 
 # Exports and constructor with separate latitude and longitude arguments
@@ -127,13 +127,13 @@ end
 @inline itp_inputs(p::Real; warn, kind) = ItuRP1144.ccdf_itp_inputs(p, psannual; warn, kind)
 
 function (nt::SingleVariableData)(latlon; alt = nothing)
-    latlon = _tolatlon(latlon)
+    latlon = tolatlon(latlon)
     alt = @something(alt, ItuRP1511.topographicheight(latlon)) |> _tokm
     (; idxs, δr, δc) = itp_inputs(latlon)
     bilinear_interpolation(nt.mean, nt.scale, nt.Z_ground, nt.scale_func, idxs, δr, δc; alt)
 end
 function (nt::SingleVariableData)(latlon, p::Real; alt = nothing, warn = !SUPPRESS_WARNINGS[])
-    latlon = _tolatlon(latlon)
+    latlon = tolatlon(latlon)
     alt = @something(alt, ItuRP1511.topographicheight(latlon)) |> _tokm
     (; idxs, δr, δc) = itp_inputs(latlon)
     (; pindexabove, pindexbelow) = itp_inputs(p; warn, kind = warnmsg_kind(nt))
@@ -288,7 +288,7 @@ The function can be called with the outage probability `p` as second positional 
 It also compute the altitude of the provided location if provided as nothing as kwarg
 """
 function annual_surface_values(latlon, args...; alt = nothing)
-    latlon = _tolatlon(latlon)
+    latlon = tolatlon(latlon)
     alt = @something(alt, ItuRP1511.topographicheight(latlon)) |> _tokm
     P = surfacepressureannual(latlon, args...; alt)
     T = surfacetemperatureannual(latlon, args...; alt)
