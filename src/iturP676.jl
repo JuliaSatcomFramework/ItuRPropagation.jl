@@ -20,7 +20,7 @@ d) a Weibull approximation to the slant path water vapour attenuation for use in
 The curren implementation only covers points a) and c) in the above list
 =#
 
-using ..ItuRPropagation: _torad, ItuRP835, ItuRP453, ItuRVersion, ItuRP1511, LatLon, ItuRP2145, _toghz
+using ..ItuRPropagation: _todeg, ItuRP835, ItuRP453, ItuRVersion, ItuRP1511, LatLon, ItuRP2145, _toghz
 using Artifacts
 const version = ItuRVersion("ITU-R", "P.676", 13, "(08/2022)")
 
@@ -507,7 +507,9 @@ end
 const STANDARD_LAYERS = map(SlantPathLayer, 1:922)
 
 # This computes a single term in the sum of equation 13 of ITU-R P.676-13.
-function layerattenuation(layer::SlantPathLayer, f, el; r₁=first(STANDARD_LAYERS).r, n₁=first(STANDARD_LAYERS).n, sinβ₁=cos(_torad(el))) # β = 90 - el so sin(β) = cos(el)
+function layerattenuation(layer::SlantPathLayer, f, el; r₁=first(STANDARD_LAYERS).r, n₁=first(STANDARD_LAYERS).n, sinβ₁ = nothing) 
+    # β = 90 - el so sin(β) = cos(el)
+    sinβ₁ = @something(sinβ₁, cos(_todeg(el) |> deg2rad))
     (; δ, r, n, T, Pd, ρ) = layer
     sinβ = sinβ₁ * n₁ * r₁ / (n * r)
     cos²β = 1 - sinβ^2
@@ -524,7 +526,7 @@ end
 function _gasattenuation_layers(layers::Vector{SlantPathLayer}, f, el)
     r₁ = first(layers).r
     n₁ = first(layers).n
-    sinβ₁ = cos(_torad(el))
+    sinβ₁ = cos(el |> deg2rad)
     att = 0.0
     for layer in layers
         outs = layerattenuation(layer, f, el; r₁, n₁, sinβ₁)
@@ -554,7 +556,7 @@ Computes the slant path gaseous attenuation for oxygen as per equation 32 in Sec
 =#
 function _slantoxygenattenuation(latlon::LatLon, f, el; γₒ, P, T, ρ)
     (; hₒ, aₒ, bₒ, cₒ, dₒ) = _hₒ(f; P, T, ρ)
-    sinθ = sin(_torad(el))
+    sinθ = sin(el |> deg2rad)
     Aₒ_zenith = γₒ * hₒ
     Aₒ = Aₒ_zenith / sinθ
     return (; Aₒ, Aₒ_zenith, γₒ, hₒ, aₒ, bₒ, cₒ, dₒ, P, T, ρ)
@@ -576,7 +578,7 @@ end
 # This function compute the slant water vapour attenuation for a given frequency, elevation angle, and atmospheric conditions as per equation 40 of Section 2.3 in Annex 2 of ITU-R P.676-13. The first method expects all relevant surface statistical parameters to be provided as keyword arguments. The second method instead computes them based on the given exceedance probability `p` and location/altitude.
 function _slantwaterattenuation(latlon, f, el; P, T, ρ, V)
     (; Kᵥ, aᵥ, bᵥ, cᵥ, dᵥ) = _Kᵥ(f; P, T, ρ)
-    sinθ = sin(_torad(el))
+    sinθ = sin(el |> deg2rad)
     Aᵥ_zenith = Kᵥ * V
     Aᵥ = Aᵥ_zenith / sinθ
     return (; Aᵥ, Aᵥ_zenith, Kᵥ, aᵥ, bᵥ, cᵥ, dᵥ, P, T, ρ, V)

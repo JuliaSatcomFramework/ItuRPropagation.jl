@@ -25,7 +25,7 @@ struct LatLon
 end
 
 # This functions are used for processing inputs and allow easier extension to support types from other packages
-@inline _torad(val::Real) = deg2rad(val)
+@inline _todeg(val::Real) = val
 
 # We expects length values to be provided in km
 @inline _tokm(val::Real) = val
@@ -34,6 +34,8 @@ end
 @inline _toghz(val::Real) = val
 
 @inline _tolatlon(x) = convert(LatLon, x)::LatLon # Type assertion on convert is used to help compiler, see https://github.com/JuliaLang/julia/issues/42372 for more details
+
+@inline _validel(el::Real) = (0 ≤ el ≤ 90) || @noinline(throw(ArgumentError("Elevation angles must be provided between 0 and 90 degrees.\nThe given elevation angle ($el degrees) is not a valid input.")))
 
 Base.show(io::IO, p::LatLon) = print(io, "(", p.lat, ", ", p.lon, ")")
 

@@ -29,3 +29,9 @@ Note that basically all changes above are **BREAKING**
   - The module now also supports computing the total barometric pressure and the integrated water vapour content, available via the `surfacepressureannual` and `surfacewatervapourcontentannual` functions, respectively.
 - The function of the `ItuRP2145` module are now tested against the validation examples excel provided by ITU-R.
 - Added a constant `SUPPRESS_WARNINGS::Ref{Bool}` in the main module that can be used to suppress warnings given by the various functions (Defaults to `false`)
+
+### Removed
+- The `ItuRP618.raindiversitygain`  and `ItuRP618.crosspolarizationdiscrimination` functions were removed as they are not being used
+- The `ItuRP453.vapourpressure` (and it's helpers) have been removed as it was not used 
+- The `ItuRP372` module has been removed, as it was not fully adhering to the recommendation text and is currently not planned for use.
+- Removed the `downlinkparameters`, `uplinkparameters` and `linkparameters` functions. They will maybe reintroduced in the future with updated implementation.

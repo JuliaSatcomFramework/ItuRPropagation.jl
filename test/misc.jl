@@ -11,6 +11,19 @@
     @test_logs (:warn, r"surface integrated water vapour content") match_mode=:any ItuRP2145.surfacewatervapourcontentannual(LatLon(0, 0), 99.99) 
     @test_logs (:warn, r"wet term of surface refractivity") match_mode=:any ItuRP453.wettermsurfacerefractivityannual(LatLon(0, 0), 99.99) 
 
+    # P618
+    @test_logs (:warn, r"between 1 and 55 GHz") match_mode=:any ItuRP618.rainattenuation(LatLon(0, 0), 1000, 30, 3)
+    @test_logs (:warn, r"between 0.001% and 5%") match_mode=:any ItuRP618.rainattenuation(LatLon(0, 0), 30, 1, 6)
+    @test_throws ArgumentError ItuRP618.rainattenuation(LatLon(0, 0), 30, 100, 1)
+
+    @test_logs (:warn, r"between 4 and 55 GHz") match_mode=:any ItuRP618.scintillationattenuation(LatLon(0, 0), 1000, 30, 3)
+    @test_logs (:warn, r"between 0.01% and 50%") match_mode=:any ItuRP618.scintillationattenuation(LatLon(0, 0), 30, 1, 0.001)
+    @test_logs (:warn, r"between 5 and 90 degrees") match_mode=:any ItuRP618.scintillationattenuation(LatLon(0, 0), 30, 1, 1)
+    @test_throws ArgumentError ItuRP618.scintillationattenuation(LatLon(0, 0), 30, 100, 1)
+
+    # Total Attenuations, we just test that scintillation warn is not triggered when p < 0.01 but function is called through attenuations
+    @test_logs ItuRP618.attenuations(LatLon(0, 0), 30, 10, 0.001; D = 1)
+
     # Test suppression of warnings
     ItuRPropagation.SUPPRESS_WARNINGS[] = true
     try
@@ -24,12 +37,19 @@
         @test_logs ItuRP2145.surfacepressureannual(LatLon(0, 0), 99.99)
         @test_logs ItuRP2145.surfacewatervapourcontentannual(LatLon(0, 0), 99.99)
         @test_logs ItuRP453.wettermsurfacerefractivityannual(LatLon(0, 0), 99.99)
+
+        # P618
+        @test_logs ItuRP618.rainattenuation(LatLon(0, 0), 1000, 30, 3)
+        @test_logs ItuRP618.rainattenuation(LatLon(0, 0), 30, 1, 6)
+        @test_logs ItuRP618.scintillationattenuation(LatLon(0, 0), 1000, 30, 3)
+        @test_logs ItuRP618.scintillationattenuation(LatLon(0, 0), 30, 1, 0.001)
+        @test_logs ItuRP618.scintillationattenuation(LatLon(0, 0), 30, 1, 1)
     finally
         ItuRPropagation.SUPPRESS_WARNINGS[] = false
     end
 end
 
-@testitem "Separat Lat, Lon arguments" begin
+@testitem "Separate Lat, Lon arguments" begin
     function randll()
         lat, lon = rand() * 180 - 90, rand() * 360 - 180
         lls = (lat, lon)
@@ -37,13 +57,18 @@ end
         return lls, ll
     end
     lls, ll = randll()
-    p = rand() * 50 + 10
+    p = rand() * 3 + 1
     f = 28
     el = 20
 
     ###### P453 ######
     @test ItuRP453.wettermsurfacerefractivityannual(lls..., p) == ItuRP453.wettermsurfacerefractivityannual(ll, p)
     @test ItuRP453.wettermsurfacerefractivityannual_50(lls...) == ItuRP453.wettermsurfacerefractivityannual_50(ll)
+
+    ###### P618 ######
+    @test ItuRP618.rainattenuation(lls..., f, el, p) == ItuRP618.rainattenuation(ll, f, el, p)
+    @test ItuRP618.scintillationattenuation(lls..., f, el, p) == ItuRP618.scintillationattenuation(ll, f, el, p)
+    @test ItuRP618.attenuations(lls..., f, el, p; D = 1) == ItuRP618.attenuations(ll, f, el, p; D = 1)
 
     ###### P676 ######
     @test ItuRP676.gaseousattenuation(lls..., f, el, p) == ItuRP676.gaseousattenuation(ll, f, el, p)
