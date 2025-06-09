@@ -9,11 +9,14 @@ Artifacts = "56f22d72-fd6d-98f1-02f0-08ddc0907c33"
 
 [weakdeps]
 Unitful = "1986cc42-f94f-5a68-af5c-568840ba703d"
+CoordRefSystems = "b46f11dc-f210-4604-bfba-323c1ec968cb"
 
 [extensions]
 UnitfulExt = "Unitful"
+CoordRefSystemsExt = "CoordRefSystems"
 
 [compat]
 Artifacts = "1"
+CoordRefSystems = "0.14 - 0.17"
 Unitful = "1.23.0"
 julia = "1.10"

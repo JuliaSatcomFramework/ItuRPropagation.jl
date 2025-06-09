@@ -119,7 +119,7 @@ end
         alt::Float64
     end
     lla = LLA(π/6, π/4, 1200)
-    Base.convert(::Type{LatLon}, lla::LLA) = LatLon(lla.lat |> rad2deg, lla.lon |> rad2deg)::LatLon
+    Base.convert(::Type{LatLon}, lla::LLA) = LatLon(lla.lat |> rad2deg, lla.lon |> rad2deg)
     ItuRPropagation.altitude_from_location(lla::LLA) = lla.alt / 1e3
 
     alt_1511 = ItuRP1511.topographicheight(lla)
@@ -137,18 +137,20 @@ end
 
     alt_m = 1200u"m"
     f_hz = 20e9u"Hz"
+    hr_m = 100u"m"
     el_d = 20u"°"
     el_rad = uconvert(u"rad", el_d)
 
     alt = uconvert(u"km", alt_m)
     f = uconvert(u"GHz", f_hz)
+    hr = uconvert(u"km", hr_m) 
     el = uconvert(u"°", el_rad)
     p = 1
     D = 1
 
-    att_nounit = ItuRP618.attenuations(LatLon(0, 0), f, el, p; D = D)
-    att_unit_deg = ItuRP618.attenuations(LatLon(0, 0), f_hz, el_d, p; D = D)
-    att_unit_rad = ItuRP618.attenuations(LatLon(0, 0), f_hz, el_rad, p; D = D)
+    att_nounit = ItuRP618.attenuations(LatLon(0, 0), f, el, p; D = D, hᵣ = hr)
+    att_unit_deg = ItuRP618.attenuations(LatLon(0, 0), f_hz, el_d, p; D = D, hᵣ = hr_m)
+    att_unit_rad = ItuRP618.attenuations(LatLon(0, 0), f_hz, el_rad, p; D = D, hᵣ = hr_m)
     # This is providing lat and lon as seprate numbers, not a LatLon object
     att_unit_split = ItuRP618.attenuations(0, 0u"°", f, el, p; D = D)
 
@@ -160,4 +162,23 @@ end
     @test LatLon(0, 0) == LatLon(0u"°", 0u"°") == LatLon(0u"°", 0u"rad") == LatLon(0u"rad", 0u"°") == LatLon(0u"rad", 0u"rad") == LatLon(0, 0u"°") == LatLon(0u"°", 0)
 
     # We also test implicit conversion works
+end
+
+@testitem "CoordRefSystems Extension" begin
+    using CoordRefSystems: CoordRefSystems, LatLonAlt, LatLon as CLL
+    using Unitful
+
+    ll = CLL(30, 45)
+    lla = LatLonAlt(ll.lat, ll.lon, 1200u"m")
+
+    alt_1511 = ItuRP1511.topographicheight(ll)
+    @test ItuRPropagation.altitude_from_location(lla) != alt_1511
+
+    atts_lla = ItuRP618.attenuations(lla, 30, 20, 1; D = 1)
+    atts_ll = ItuRP618.attenuations(ll, 30, 20, 1; D = 1)
+    bench_1511alt = ItuRP618.attenuations(LatLon(30, 45), 30, 20, 1; D = 1)
+    bench_customalt = ItuRP618.attenuations(lla, 30, 20, 1; D = 1, alt = 1.2)
+    @test atts_lla.At ≉ bench_1511alt.At
+    @test atts_ll.At ≈ bench_1511alt.At
+    @test atts_lla.At ≈ bench_customalt.At
 end
