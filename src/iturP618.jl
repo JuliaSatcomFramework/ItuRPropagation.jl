@@ -5,7 +5,7 @@ This Recommendation predicts the various propagation parameters needed in planni
 systems operating in either the Earth-to-space or space-to-Earth direction.
 =#
 
-using ..ItuRPropagation: ItuRPropagation, LatLon, ItuRVersion, tolatlon, _tokm, _todeg, _toghz, SUPPRESS_WARNINGS, IturEnum, tilt_from_polarization, _validel, ItuRP840, ItuRP676, ItuRP453, ItuRP838, ItuRP837, ItuRP1511, ItuRP839, EnumCircularPolarization
+using ..ItuRPropagation: ItuRPropagation, LatLon, ItuRVersion, tolatlon, _tokm, _todeg, _toghz, SUPPRESS_WARNINGS, IturEnum, tilt_from_polarization, _validel, ItuRP840, ItuRP676, ItuRP453, ItuRP838, ItuRP837, ItuRP1511, ItuRP839, EnumCircularPolarization, altitude_from_location
 using Artifacts
 
 const version = ItuRVersion("ITU-R", "P.618", 14, "(08/2023)")
@@ -15,6 +15,8 @@ for name in (:scintillationattenuation, :rainattenuation, :attenuations)
     @eval $name(lat::Number, lon::Number, args...; kwargs...) = $name(LatLon(lat, lon), args...; kwargs...)
     @eval export $name
 end
+# We add a method to avoid the ambiguities in Aqua
+attenuations(::Number, ::Number, ::Any, ::Any, ::Val = Val(false); kwargs...) = throw(ArgumentError("This method signature is not supported by ItuRP618.attenuations, you probably forgot to provide one argument.\nRemember that the first input to this function is either a single object representing the Lat/Lon location of interest or two separate numbers representing the latitude and longitude."))
 
 const Rₑ = 8500 # effective radius of the Earth (km)
 
@@ -142,6 +144,7 @@ function rainattenuation(
     warn=!SUPPRESS_WARNINGS[],
 )
     # Inputs Processing
+    alt = @something(alt, altitude_from_location(latlon)) |> _tokm
     latlon = tolatlon(latlon)
     el = _todeg(el)
     f = _toghz(f)
@@ -153,7 +156,7 @@ end
 function _rainattenuation(latlon, f, el, p; polarization_angle = nothing, alt = nothing, hᵣ = nothing, R001 = nothing, warn=!SUPPRESS_WARNINGS[])
     # Inputs Processing
     hᵣ = @something(hᵣ, ItuRP839.rainheightannual(latlon)) |> _tokm
-    alt = @something(alt, ItuRP1511.topographicheight(latlon)) |> _tokm
+    alt = @something(alt, altitude_from_location(latlon)) |> _tokm
     polarization_angle = @something(polarization_angle, 45) |> _todeg
     R001 = @something(R001, ItuRP837.rainfallrate001(latlon))
 
@@ -305,6 +308,7 @@ function attenuations(
     hᵣ = nothing,
     gamma_oxygen = nothing, γₒ = nothing,
 ) where {full_output}
+    alt = @something(alt, altitude_from_location(latlon)) |> _tokm
     latlon = tolatlon(latlon)
     el = _todeg(el)
     f = _toghz(f)
@@ -334,7 +338,7 @@ function _attenuations(latlon, f, el, p;
     5 ≤ el ≤ 90 || !warn || @noinline(@warn("ItuR840.cloudattenuation only supports elevation angles between 5 and 90 degrees.\nThe given elevation angle $el degrees is outside this range so results may be inaccurate."))
 
     # Extract altitude
-    alt = @something(alt, ItuRP1511.topographicheight(latlon)) |> _tokm
+    alt = @something(alt, altitude_from_location(latlon)) |> _tokm
     # Default polarization angle to 45 (circular)
     polarization_angle = @something(polarization_angle, 45) |> _todeg
     # Extract the zenith gaseous attenuation

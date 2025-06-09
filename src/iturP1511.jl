@@ -5,7 +5,7 @@ This Recommendation provides global topographical data, information on geographi
 height data for the prediction of propagation effects for Earth-space paths in ITU-R recommendations.
 =#
 
-using ..ItuRPropagation
+using ..ItuRPropagation: ItuRPropagation, LatLon, ItuRVersion, tolatlon, _tokm, ItuRP1144
 using Artifacts
 const version = ItuRVersion("ITU-R", "P.1511", 3, "(08/2023)")
 
@@ -48,7 +48,8 @@ Calculates topographic height as per Section 1.1 of ITU-R P.1511-3.
 # Return
 - `I::Real`: height (km)
 """
-function topographicheight(latlon::LatLon)
+function topographicheight(latlon)
+    latlon = tolatlon(latlon)
     grid_data = GRID_DATA.topo
     alt = ItuRP1144.bicubic_interpolation(grid_data.data, latlon, grid_data.latrange, grid_data.lonrange) / 1e3
     return alt

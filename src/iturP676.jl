@@ -562,9 +562,9 @@ function _slantoxygenattenuation(latlon::LatLon, f, el; γₒ, P, T, ρ)
     return (; Aₒ, Aₒ_zenith, γₒ, hₒ, aₒ, bₒ, cₒ, dₒ, P, T, ρ)
 end
 function _slantoxygenattenuation(latlon, f, el, p; γₒ=nothing, alt=nothing)
-    (; P, T, ρ, alt) = ItuRP2145._annual_surface_values(latlon, p; alt)
+    (; P, T, ρ, alt) = ItuRP2145.annual_surface_values(latlon, p; alt)
     γₒ = @something γₒ let
-        params = ItuRP2145._annual_surface_values(latlon; alt)
+        params = ItuRP2145.annual_surface_values(latlon; alt)
         P̄ = params.P
         T̄ = params.T
         ρ̄ = params.ρ
@@ -584,7 +584,7 @@ function _slantwaterattenuation(latlon, f, el; P, T, ρ, V)
     return (; Aᵥ, Aᵥ_zenith, Kᵥ, aᵥ, bᵥ, cᵥ, dᵥ, P, T, ρ, V)
 end
 function _slantwaterattenuation(latlon, f, el, p; alt=nothing)
-    (; P, T, ρ, alt) = ItuRP2145._annual_surface_values(latlon; alt)
+    (; P, T, ρ, alt) = ItuRP2145.annual_surface_values(latlon; alt)
     V = ItuRP2145.surfacewatervapourcontentannual(latlon, p; alt)
     _slantwaterattenuation(latlon, f, el; P, T, ρ, V)
 end
