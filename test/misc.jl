@@ -19,7 +19,9 @@
     @test_logs (:warn, r"between 4 and 55 GHz") match_mode=:any ItuRP618.scintillationattenuation(LatLon(0, 0), 1000, 30, 3)
     @test_logs (:warn, r"between 0.01% and 50%") match_mode=:any ItuRP618.scintillationattenuation(LatLon(0, 0), 30, 1, 0.001)
     @test_logs (:warn, r"between 5 and 90 degrees") match_mode=:any ItuRP618.scintillationattenuation(LatLon(0, 0), 30, 1, 1)
+    @test_logs (:warn, r"between 0 and 100") match_mode=:any ItuRP618.scintillationattenuation(LatLon(0, 0), 30, 20, 1; efficiency = .5)
     @test_throws ArgumentError ItuRP618.scintillationattenuation(LatLon(0, 0), 30, 100, 1)
+    @test_throws ArgumentError ItuRP618.scintillationattenuation(LatLon(0, 0), 30, 1, 1; efficiency = 101)
 
     # Total Attenuations, we just test that scintillation warn is not triggered when p < 0.01 but function is called through attenuations
     @test_logs ItuRP618.attenuations(LatLon(0, 0), 30, 10, 0.001; D = 1)
@@ -44,6 +46,7 @@
         @test_logs ItuRP618.scintillationattenuation(LatLon(0, 0), 1000, 30, 3)
         @test_logs ItuRP618.scintillationattenuation(LatLon(0, 0), 30, 1, 0.001)
         @test_logs ItuRP618.scintillationattenuation(LatLon(0, 0), 30, 1, 1)
+        @test_logs ItuRP618.scintillationattenuation(LatLon(0, 0), 30, 20, 1; efficiency = .5)
     finally
         ItuRPropagation.SUPPRESS_WARNINGS[] = false
     end

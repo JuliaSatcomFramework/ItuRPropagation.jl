@@ -591,7 +591,7 @@ end
 
 
 """
-    Ag = gaseousattenuation(latlon, f, el, p; alt = nothing)
+    Ag = gaseousattenuation(latlon, f, el, p; alt = nothing, gamma_oxygen = nothing, γₒ = nothing)
 
 Computes the statistical gaseous attenuation for a slant path following the approximate computation specified in Annex 2 of ITU-R P.676-13.
 
@@ -606,6 +606,7 @@ More specifically this computes ``Ag = Ao + Aw`` implementing:
 
 # Keyword arguments
 - `alt`: Altitude at the provided location, to be used for computing the various intermediate varaibles. If not provided, default to the altitude computed with `ItuRP1511.topographicheight`
+- `gamma_oxygen` (or `γₒ`): Specific attenuation due to oxygen (dB/km) computed from the average surface conditions, at the desired location. **This is computed automatically based on other inputs if not explicitly provided, but it is only location dependent and >70% of the time is spent in computing this, so consider precomputing and passing it directly for maximum speed**
 
 See the extended help for the signature of the function with precomputed intermediate variables.
 
@@ -630,7 +631,7 @@ This method do not accept the outage probability `p` as last argument but expect
 - `T`: Surface temperature (K) at the desired exceedance probability, at the desired location.
 - `rho`: Surface water vapour density (g/m^3) at the desired exceedance probability, at the desired location.
 - `V`: Surface water vapour content (kg/m^2) at the desired exceedance probability, at the desired location.
-- `gamma_oxygen` (or `γₒ`): Specific attenuation due to oxygen (dB/km) computed from the average surface conditions, at the desired location. **This is computed automatically based on other inputs if not explicitly provided**
+- `gamma_oxygen` (or `γₒ`): Specific attenuation due to oxygen (dB/km) computed from the average surface conditions, at the desired location. **This is computed automatically based on other inputs if not explicitly provided, but it is only location dependent and >70% of the time is spent in computing this, so consider precomputing and passing it directly for maximum speed**
 """
 function gaseousattenuation(latlon, f, el; 
     P_mean = nothing, P̄ = nothing, # Average surface total pressure at the desired location
@@ -659,15 +660,15 @@ function gaseousattenuation(latlon, f, el;
     return Agas
 end
 
-function gaseousattenuation(latlon, f, el, p; alt=nothing)
-    mean_vals = ItuRP2145._annual_surface_values(latlon; alt)
+function gaseousattenuation(latlon, f, el, p; alt=nothing, gamma_oxygen=nothing, γₒ=nothing)
+    mean_vals = ItuRP2145.annual_surface_values(latlon; alt)
     P̄ = mean_vals.P
     T̄ = mean_vals.T
     ρ̄ = mean_vals.ρ
     alt = mean_vals.alt
-    (; P, T, ρ) = ItuRP2145._annual_surface_values(latlon, p; alt)
+    (; P, T, ρ) = ItuRP2145.annual_surface_values(latlon, p; alt)
     V = ItuRP2145.surfacewatervapourcontentannual(latlon, p; alt)
-    gaseousattenuation(latlon, f, el; P̄, T̄, ρ̄, V, P, T, ρ)
+    gaseousattenuation(latlon, f, el; P̄, T̄, ρ̄, V, P, T, ρ, gamma_oxygen, γₒ)
 end
 
 end # module ItuRP676

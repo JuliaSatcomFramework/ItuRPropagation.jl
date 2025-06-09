@@ -10,7 +10,7 @@ using ..ItuRPropagation: ItuRPropagation, LatLon, ItuRVersion, ItuRP1511, ItuRP1
 using Artifacts: Artifacts, @artifact_str
 
 # Exports and constructor with separate latitude and longitude arguments
-for name in (:surfacetemperatureannual, :surfacewatervapourdensityannual, :surfacepressureannual, :surfacewatervapourcontentannual)
+for name in (:surfacetemperatureannual, :surfacewatervapourdensityannual, :surfacepressureannual, :surfacewatervapourcontentannual, :annual_surface_values)
     @eval $name(lat::Number, lon::Number, args...; kwargs...) = $name(LatLon(lat, lon), args...; kwargs...)
     @eval export $name
 end
@@ -276,7 +276,7 @@ surfacewatervapourcontentannual(args...; kwargs...) = getvariable(Val(:V))(args.
 
 
 """
-    _annual_surface_values(latlon[, p]; alt = nothing)
+    annual_surface_values(latlon[, p]; alt = nothing)
 
 This function is used to provide the annual surface values for variables refrenced in P676 and P618:
 - `P`: The total barometric pressure
@@ -287,8 +287,9 @@ The function can be called with the outage probability `p` as second positional 
 
 It also compute the altitude of the provided location if provided as nothing as kwarg
 """
-function _annual_surface_values(latlon, args...; alt = nothing)
-    alt = @something(alt, ItuRP1511.topographicheight(latlon))
+function annual_surface_values(latlon, args...; alt = nothing)
+    latlon = _tolatlon(latlon)
+    alt = @something(alt, ItuRP1511.topographicheight(latlon)) |> _tokm
     P = surfacepressureannual(latlon, args...; alt)
     T = surfacetemperatureannual(latlon, args...; alt)
     ρ = surfacewatervapourdensityannual(latlon, args...; alt)

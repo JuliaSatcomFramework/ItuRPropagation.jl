@@ -59,6 +59,8 @@ function _scintillationattenuation(latlon, f, el, p; D, η, Nwet = nothing, warn
     # We don't process latlon as that is only used in another function that does that
     
     # Inputs checks
+    (0 ≤ η ≤ 100) || throw(ArgumentError("ItuR618.scintillationattenuation only supports antenna efficiencies between 0 and 100%.\nThe given antenna efficiency $η% is outside this range."))
+    (η > 1) || !warn || @noinline(@warn("ItuR618.scintillationattenuation expects antenna efficiencies in percentage (between 0 and 100).\nThe given antenna efficiency $η% is below 1% and seems to indicate that efficiency was not provided as percentage."))
     (4 ≤ f ≤ 55) || !warn || @noinline(@warn("ItuR618.scintillationattenuation only supports frequencies between 4 and 55 GHz.\nThe given frequency $f GHz is outside this range. The result may be inaccurate."))
     (0.01 ≤ p ≤ 50) || ignore_pwarn || !warn || @noinline(@warn("ItuR618.scintillationattenuation only supports exceedance probabilities between 0.01% and 50%.\nThe given exceedance probability $p% is outside this range. The result may be inaccurate."))
     _validel(el) # Check that elevation is between 0 and 90 degrees
@@ -211,13 +213,33 @@ function _rainattenuation(latlon, f, el, p; polarization_angle = nothing, alt = 
     return out
 end
 
-function _combine_attenuations(; Ac::Real, Ag::Real, Ar::Real, As::Real)
+"""
+    combine_attenuations(; Ac::Real, Ag::Real, Ar::Real, As::Real)
+
+Combines the various attenuations into a total attenuation following the formula of ITU-R P618-14 (Eq 65-66):
+
+```math
+At = Ag + \\sqrt{(Ar + Ac)^2 + As^2}
+```
+
+This function does not take the outage probability as input, it just assumes that `Ar` will be 0 for `p > 5%`.
+
+# Arguments
+- `Ac::Real`: Cloud attenuation (dB). Defaults to 0 if not provided
+- `Ag::Real`: Gaseous attenuation (dB). Defaults to 0 if not provided
+- `Ar::Real`: Rain attenuation (dB). Defaults to 0 if not provided
+- `As::Real`: Scintillation attenuation (dB). Defaults to 0 if not provided
+
+# Return
+- `At::Real`: Total attenuation (dB)
+"""
+function combine_attenuations(; Ac::Real = 0, Ag::Real = 0, Ar::Real = 0, As::Real = 0)
     At = Ag + sqrt((Ar + Ac)^2 + As^2)
     return (; At, Ac, Ag, Ar, As)
 end
 
 """
-    attenuations(latlon, f, el, p; D, η, alt, polarization, polarization_angle, warn)
+    attenuations(latlon, f, el, p; D, η, alt, polarization, polarization_angle, warn, extra_kwargs...)
 
 Computes the various attenuations for earth/space links based on Section 2.4.1 of ITU-R P618-13.
     
@@ -229,18 +251,47 @@ Computes the various attenuations for earth/space links based on Section 2.4.1 o
 
 # Keyword Arguments
 - `D`: antenna diameter (m)
-- `η`: antenna efficiency (% from 0 to 100, defaults to 60). **Note: This can also be provided with the name `efficiency`**
+- `η` (also accepted as `efficiency`): antenna efficiency (% from 0 to 100, defaults to 60).
 - `alt`: altitude of ground station (km). Defaults to `ItuRP1511.topographicheight(latlon)`
 - `polarization`: polarization (EnumHorizontalPolarization, EnumVerticalPolarization, or EnumCircularPolarization)
-- `polarization_angle`: tilt angle [degrees] of the electric field polarization w.r.t. horizontal polarization.
-  - Note: This field is computed from the `polarization` argument if not provided, and disregards the `polarization` argument if explicitly provided.
+- `polarization_angle`: tilt angle [degrees] of the electric field polarization w.r.t. horizontal polarization. **Note: This field is computed from the `polarization` argument if not provided, but this function disregards the `polarization` argument if `polarization_angle` is explicitly provided.**
 - `warn`: Whether to warn if the inputs are outside the supported range. Defaults to `!SUPPRESS_WARNINGS[]`
+
+See extended help for more details on extra keyword arguments and for maximizing the speed of the computation when some intermediate inputs are known.
 
 # Return
 - `(Ac=Ac, Ag=Ag, Ar=Ar, As=As, At=At)`: cloud, gas, rain, scintillation, total attenuations (dB)
+
+# Extended help
+
+This function accepts some additional keyword arguments that are intermediate inputs to the computation, and can be provided to maximize the speed of the computation. These `extra_kwargs` are:
+- `Ag_zenith`: Zenith gaseous attenuation (dB/km) at zenith (90° elevation)
+- `Ac_zenith`: Zenith cloud attenuation (dB/km) at zenith (90° elevation)
+- `Nwet`: Wet term surface refractivity (N-units)
+- `R001`: Annual rain rate [mm/h] exceeded 0.01% of the time.
+- `hᵣ`: Rain height [Km] to be used for the computation.
+- `gamma_oxygen` (also accepted as `γₒ`): Specific attenuation due to oxygen (dB/km) computed from the average surface conditions, at the desired location. **Note: This is used to speed up the computation of `Ag_zenith` but is ignored if the `Ag_zenith` argument is provided**
+
+Additionally, the function can be called with `Val(true)` as last positional argument (after `p`) to also return the various intermediate inputs used in the computation for speeding up subsequent calls where only the elevation angle changes. Here is an example on how to use this when needing to compute attenuations for a given ground location towards multiple satellites at different elevation angles:
+
+## Fast computation example
+
+```julia
+els = [10, 20, 30, 40, 50, 60, 70, 80, 90]
+ll = LatLon(0,0)
+p = .5 # .5% outage
+D = 1 # 1m antenna diameter
+# We compute the attenuations for the first elevation angle and save also the various intermediate values stored in the `kwargs` field of the output.
+nt = ItuRP618.attenuations(ll, 30, first(els), p, Val(true); D)
+# We create a vector of outputs for different elevations exploiting the precomputed kwargs
+outs = map(eachindex(els)) do i
+    i == 1 && return nt.attenuations
+    ItuRP618.attenuations(ll, 30, els[i], p; nt.kwargs...)
+end
+```
 """
 function attenuations(
-    latlon, f, el, p;
+    latlon, f, el, p, ::Val{full_output} = Val(false);
     D,
     efficiency = 60, η=efficiency,
     alt = nothing,
@@ -252,13 +303,18 @@ function attenuations(
     Nwet = nothing,
     R001 = nothing,
     hᵣ = nothing,
-)
+    gamma_oxygen = nothing, γₒ = nothing,
+) where {full_output}
     latlon = _tolatlon(latlon)
     el = _todeg(el)
     f = _toghz(f)
     _validel(el) # Validate input elevation
-    (; attenuations) = _attenuations(latlon, f, el, p; D, η, polarization_angle, alt, warn, Ag_zenith, Ac_zenith, Nwet, R001, hᵣ)
-    return attenuations
+    full = _attenuations(latlon, f, el, p; D, η, polarization_angle, alt, warn, Ag_zenith, Ac_zenith, Nwet, R001, hᵣ, gamma_oxygen, γₒ)
+    if full_output
+        return full
+    else
+        return full.attenuations
+    end
 end
 
 function _attenuations(latlon, f, el, p;
@@ -271,6 +327,7 @@ function _attenuations(latlon, f, el, p;
     Nwet = nothing,
     R001 = nothing,
     hᵣ = nothing,
+    gamma_oxygen = nothing, γₒ = nothing,
     warn=!SUPPRESS_WARNINGS[],
 )
     # Check the positional arguments ranges
@@ -281,7 +338,7 @@ function _attenuations(latlon, f, el, p;
     # Default polarization angle to 45 (circular)
     polarization_angle = @something(polarization_angle, 45) |> _todeg
     # Extract the zenith gaseous attenuation
-    Ag_zenith = @something(Ag_zenith, ItuRP676.gaseousattenuation(latlon, f, 90, max(5, p); alt))
+    Ag_zenith = @something(Ag_zenith, ItuRP676.gaseousattenuation(latlon, f, 90, max(5, p); alt, gamma_oxygen, γₒ))
     # Extract the zenith cloud attenuation
     Ac_zenith = @something(Ac_zenith, ItuRP840.cloudattenuation(latlon, f, 90, max(5, p); warn))
 
@@ -300,8 +357,8 @@ function _attenuations(latlon, f, el, p;
     Ac = Ac_zenith / sinθ
     Ag = Ag_zenith / sinθ
 
-    attenuations = _combine_attenuations(; Ac, Ag, Ar = Aₚ, As)
-    kwargs = (; Ac_zenith, Ag_zenith, polarization_angle, alt, D, η, Nwet, R001, hᵣ)
+    attenuations = combine_attenuations(; Ac, Ag, Ar = Aₚ, As)
+    kwargs = (; Ac_zenith, Ag_zenith, polarization_angle, alt, D, η, Nwet, R001, hᵣ, warn)
 
     return (; attenuations, kwargs, inps = (; latlon, f, el, p))
 end
