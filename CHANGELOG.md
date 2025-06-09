@@ -20,6 +20,8 @@ Note that basically all changes above are **BREAKING**
 - Refactored the `ItuRP453` module to use independent artifacts and now provide a function to interpolate the wetterm refractive index not only at the 50 percentile
 - Refactored the `ItuRP839` module to use specific artifacts and its test to use the ITU validation excel version 8.3
 - Refactored the `ItuRP837` module to use specific artifacts and its test to use the ITU validation excel version 8.3
+- The `attenuations` function is now defined inside the `ItuRP618` module but it's still exported by the main package module
+- The `LatLon` constructor now wraps the longitude instead of throwing for large values.
 
 ### Added
 - A new `ItuRP1144` module has been added to hold the interpolation functions defined recommendation ITU-R P.1144-12.
