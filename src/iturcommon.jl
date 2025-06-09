@@ -11,7 +11,7 @@ struct LatLon
     lat::Float64
     lon::Float64
     function LatLon(lat, lon)
-        -90 ≤ lat ≤ 90 || throw(ErrorException("lat=$lat\nlat (latitude) should be between -90 and 90"))
+        -90 ≤ lat ≤ 90 || throw(ArgumentError("lat=$lat\nlat (latitude) should be between -90 and 90"))
         lon = rem(lon, 360, RoundNearest)
         new(lat, lon)
     end
