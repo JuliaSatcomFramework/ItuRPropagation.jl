@@ -3,6 +3,9 @@
 [![Coverage](https://codecov.io/gh/JuliaSatcomFramework/ItuRPropagation.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/JuliaSatcomFramework/ItuRPropagation.jl)
 [![Aqua QA](https://raw.githubusercontent.com/JuliaTesting/Aqua.jl/master/badge.svg)](https://github.com/JuliaTesting/Aqua.jl)
 
+> [!WARNING]
+> This repository is now archived as all new functionalities/changes are now moved to the new package/repository at https://github.com/JuliaSatcomFramework/ITUPropagationModels.jl. This repository had a significant amount of merged PRs after the 0.2.0-DEV version but all of those changes are only available on our private registry with the new package just mentioned.
+
 A Julia implementation of some of the ITU-Recommendations for space links covering cloud, gaseous, rain, and scintillation attenuations.
 
 > [!NOTE]
